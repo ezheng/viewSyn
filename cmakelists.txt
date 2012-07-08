@@ -1,0 +1,73 @@
+cmake_minimum_required(VERSION 2.7)
+project(viewSynSln)
+
+find_package(Qt4 COMPONENTS QtCore QtGui QtOpenGL REQUIRED)
+find_package(OpenGL REQUIRED)
+find_package(CUDA REQUIRED)
+
+set(CMAKE_INCLUDE_PATH "C:/Qt/4.8.1/bin")
+set(OPENCV_INCLUDE "C:/Enliang/library/opencv/build/include/")
+set(OPENCV_LIB_PATH "C:/Enliang/library/opencv/build/x86/vc10/lib/")
+set(GLM_PATH "C:/Enliang/library/glm-0.9.3.3/")
+set(PTGRY "C:/Program Files (x86)/Point Grey Research/FlyCapture2")
+set(GLEW_PATH "C:/Enliang/library/glew-1.7.0")
+
+
+#------------------------------------------------------------------------------------
+qt4_wrap_cpp (MOC_OUTFILES src/GLWidget.h src/viewSynForm.h src/mainWindowForm.h src/ptrFlea3.h 
+			src/GLWidgetVirtualView.h src/GLWidgetAllImgs.h)
+qt4_wrap_ui(UI_OUTFILES src/mainWidget.ui src/mainWindow.ui)
+
+
+include_directories(
+					${QT_QTGUI_INCLUDE_DIR} 
+                    ${QT_QTCORE_INCLUDE_DIR} 
+                    ${QT_INCLUDE_DIR}
+                    ${QT_QTOPENGL_INCLUDE_DIR}
+                    ${CMAKE_BINARY_DIR}
+					${OPENCV_INCLUDE}
+					${GLM_PATH}
+					${PTGRY}/include
+					${GLEW_PATH}/include
+					${CUDA_TOOLKIT_INCLUDE}					
+					) 
+					
+
+link_directories(
+					${OPENCV_LIB_PATH}
+					${PTGRY}/lib
+					${GLEW_PATH}/lib					
+				)
+					
+
+add_executable(viewSyn        
+                      src/GLWidget.cpp src/GLWidget.h 
+                      src/main.cpp                      
+					  src/image.h  src/image.cpp
+					  src/viewSynForm.cpp  src/viewSynForm.h
+					  src/texture2D.cpp	  src/texture2D.h
+					  src/mainWindowForm.cpp  src/mainWindowForm.h
+					  src/GLWidgetAllImgs.cpp  src/GLWidgetAllImgs.h
+					  src/ptrFlea3.h  src/ptrFlea3.cpp
+					  src/GLWidgetVirtualView.cpp  src/GLWidgetVirtualView.h
+					  src/virtualImage.cpp	src/virtualImage.h
+					  src/vsShaderLib.cpp	src/vsShaderLib.h
+					  src/framebufferObject.cpp src/framebufferObject.h		
+					  shader/warping.vert shader/warping.geom shader/warping.frag 
+					  shader/displayLayeredTex.vert shader/displayLayeredTex.frag					  
+                      ${MOC_OUTFILES}
+                      ${UI_OUTFILES}					  
+              )
+
+target_link_libraries(viewSyn 
+                      ${QT_QTCORE_LIBRARY} 
+                      ${QT_QTGUI_LIBRARY}
+                      ${QT_QTOPENGL_LIBRARY}  
+                      ${OPENGL_LIBRARIES}
+					  optimized opencv_highgui240.lib optimized opencv_core240.lib
+					  debug opencv_highgui240d.lib debug opencv_core240d.lib
+					  debug FlyCapture2d_v100.lib optimized FlyCapture2_v100.lib
+					  glew32.lib
+					  ${CUDA_CUDA_LIBRARY}
+					  ${CUDA_CUDART_LIBRARY}
+                      )
