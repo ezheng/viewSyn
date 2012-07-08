@@ -70,12 +70,13 @@ private:
 	void displayLayedTexture(GLuint &texture);
 	int printOglError(char *file, int line);
 
-	struct cudaGraphicsResource *cost3D_CUDAResource;
-	cudaArray *cost3D_CUDAArray;
+	struct cudaGraphicsResource *_cost3D_CUDAResource;
+	cudaArray *_cost3D_CUDAArray;
 
 
 	void CUDA_SAFE_CALL( cudaError_t error, std::string fileName = __FILE__, int lineNum = __LINE__);
-
+	void doCudaProcessing(cudaArray *in_layeredArray);
+	unsigned int* _outArray;	// memory in GPU
 
 };
 

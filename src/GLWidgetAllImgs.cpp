@@ -58,13 +58,13 @@ void GLWidgetAllImgs::mouseMoveEvent(QMouseEvent *event)
 {
 	int deltaX =  event->x() - _mouseX;
 	int deltaY =  event->y() - _mouseY;
-	std::cout<< "mouseX: " << _mouseX << " mouseY: " << _mouseY << std::endl;
-	std::cout<< "deltaX: " << deltaX << " deltaY: " << deltaY << std::endl;
+	//std::cout<< "mouseX: " << _mouseX << " mouseY: " << _mouseY << std::endl;
+	//std::cout<< "deltaX: " << deltaX << " deltaY: " << deltaY << std::endl;
 
 	float s = static_cast<float>( std::max(this->width(), this->height()));
 	float rangeX = static_cast<float>(deltaX) / (s + 0.00001);
 	float rangeY = static_cast<float>(deltaY) / (s + 0.00001);
-	std::cout<< "rangeX: " << rangeX << " rangeY: " << rangeY << std::endl;
+	//std::cout<< "rangeX: " << rangeX << " rangeY: " << rangeY << std::endl;
 	//std::cout<< "deltaX: " << deltaX << " deltaY: " << deltaY << std::endl; 
 	if (event->buttons() & Qt::LeftButton) {
 		glm::mat4x4 inverseVirtualModelViewMatrix = glm::inverse(_virtualModelViewMatrix);

@@ -17,7 +17,7 @@ set(GLEW_PATH "C:/Enliang/library/glew-1.7.0")
 qt4_wrap_cpp (MOC_OUTFILES src/GLWidget.h src/viewSynForm.h src/mainWindowForm.h src/ptrFlea3.h 
 			src/GLWidgetVirtualView.h src/GLWidgetAllImgs.h)
 qt4_wrap_ui(UI_OUTFILES src/mainWidget.ui src/mainWindow.ui)
-
+set(CUDA_NVCC_FLAGS -G0; -arch sm_20)
 
 include_directories(
 					${QT_QTGUI_INCLUDE_DIR} 
@@ -40,7 +40,7 @@ link_directories(
 				)
 					
 
-add_executable(viewSyn        
+cuda_add_executable(viewSyn        
                       src/GLWidget.cpp src/GLWidget.h 
                       src/main.cpp                      
 					  src/image.h  src/image.cpp
@@ -54,7 +54,8 @@ add_executable(viewSyn
 					  src/vsShaderLib.cpp	src/vsShaderLib.h
 					  src/framebufferObject.cpp src/framebufferObject.h		
 					  shader/warping.vert shader/warping.geom shader/warping.frag 
-					  shader/displayLayeredTex.vert shader/displayLayeredTex.frag					  
+					  shader/displayLayeredTex.vert shader/displayLayeredTex.frag
+					  src/planeSweep.cu
                       ${MOC_OUTFILES}
                       ${UI_OUTFILES}					  
               )

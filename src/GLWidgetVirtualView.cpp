@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include <string>
 
+extern void launchCudaProcess(cudaArray *in_layeredArray, unsigned int *out_array, int imgWidth, int imgHeight);
+
 #define printOpenGLError() printOglError(__FILE__, __LINE__)
 
 int GLWidgetVirtualView:: printOglError(char *file, int line)
@@ -138,9 +140,26 @@ void GLWidgetVirtualView::initializeGL()
 	//			  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsNone));
 	CUDA_SAFE_CALL(cudaGLSetGLDevice(0));
 
-	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&cost3D_CUDAResource, _cost3DTexID, 
+	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_cost3D_CUDAResource, _cost3DTexID, 
 				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsNone));// register the 3d texture
 	 
+	printOpenGLError();
+
+	
+}
+
+
+void GLWidgetVirtualView::doCudaProcessing(cudaArray *in_layeredArray)
+{
+	int width = this->_psParam._virtualWidth;
+	int height = this->_psParam._virtualHeight;
+
+	CUDA_SAFE_CALL(cudaMalloc((void**)&_outArray, width * height * 4 * sizeof(GLubyte)));
+
+	launchCudaProcess(in_layeredArray, _outArray, width, height);
+
+
+
 }
 
 void GLWidgetVirtualView::CUDA_SAFE_CALL( cudaError_t err, std::string file, int line)
@@ -232,9 +251,7 @@ void GLWidgetVirtualView::resizeGL(int w, int h)
 void GLWidgetVirtualView::paintGL()
 {
 	// ***** maybe no depth buffer is needed in first pass
-
-	//glClear(GL_COLOR_BUFFER_BIT); 
-	
+	//glClear(GL_COLOR_BUFFER_BIT); 	
 	printOpenGLError();
 	//---------------------
 	// set up the uniforms: images, transformation matrix, etc...
@@ -282,17 +299,17 @@ void GLWidgetVirtualView::paintGL()
 	//*****
 	
 	displayLayedTexture(_cost3DTexID);
-
+	printOpenGLError();
 	// --------------------------------- By doing this I get the layered texture 
 	//  map the texture to CUDA, and then find the colors, and then render by writing a cuda kernel
-	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &cost3D_CUDAResource, 0));	// one resource and stream 0
-	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&cost3D_CUDAArray, cost3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_cost3D_CUDAResource, 0));	// one resource and stream 0
+	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_cost3D_CUDAArray, _cost3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
 
+	doCudaProcessing(_cost3D_CUDAArray);
 
-
-
-	// that's it!!!
-	printOpenGLError();
+	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_cost3D_CUDAResource, 0));
+	
+	// that's it!!!	
 }
 
 void GLWidgetVirtualView::mousePressEvent(QMouseEvent *event)
