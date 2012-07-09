@@ -8,7 +8,8 @@
 #include <cstdlib>
 #include <string>
 
-extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned int *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
+
+extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
 
 #define printOpenGLError() printOglError(__FILE__, __LINE__)
 
@@ -179,20 +180,30 @@ void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArra
 
 	std::cout<< " number of images: " << numOfImages << std::endl;
 
+	if ( cudaSuccess != cudaGetLastError() )
+	   printf( "Error!\n" );
+
+	size_t free, total; float mb = 1<<20;
+	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
+
 	CUDA_SAFE_CALL(cudaMalloc((void**)&_outArray, width * height * 4 * sizeof(GLubyte)));
 
 	launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes);
 
+
 	CUDA_SAFE_CALL(cudaMemcpyToArray(syncView_CUDAArray, 0, 0, _outArray, height * width * 4 * sizeof(GLubyte),
-		cudaMemcpyDeviceToDevice));
+		cudaMemcpyDeviceToDevice));		// Copy the data back to the texture
+
+	CUDA_SAFE_CALL(cudaFree((void*)_outArray));
 
 }
 
 void GLWidgetVirtualView::CUDA_SAFE_CALL( cudaError_t err, std::string file, int line)
 {
    if (err != cudaSuccess) {
-        printf( "%s in %s at line %d\n", cudaGetErrorString( err ),
-                file, line );
+       // printf( "%s in %s at line %d\n", cudaGetErrorString( err ),
+       //         file, line );
+	   std::cout<< cudaGetErrorString( err ) << " in file: " << file << " at line: " << line << std::endl;
         exit( EXIT_FAILURE );
     }
 }

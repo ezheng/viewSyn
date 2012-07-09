@@ -80,7 +80,7 @@ private:
 
 	void CUDA_SAFE_CALL( cudaError_t error, std::string fileName = __FILE__, int lineNum = __LINE__);
 	void doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, cudaArray *syncView_CUDAArray);
-	unsigned int* _outArray;	// memory in GPU
+	unsigned char* _outArray;	// memory in GPU
 
 	texture2D _syncView;
 	cudaArray *_syncView_CUDAArray;
