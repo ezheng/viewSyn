@@ -11,7 +11,10 @@ uniform float step;
 in int instanceID[];
 
 
+
 out vec4 ProjTexCoord[3];
+
+
 
 void main()
 {

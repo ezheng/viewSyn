@@ -12,13 +12,13 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
-
+#include "texture2D.h"
 
 struct planeSweepParameters
 {
 	int _virtualWidth;
 	int _virtualHeight;
-	int _numOfPlanes;
+	unsigned int _numOfPlanes;
 	int _numOfCameras; // the number does not include the virtual view cam.
 
 };
@@ -57,6 +57,7 @@ private:
 
 	planeSweepParameters _psParam;
 	GLuint _cost3DTexID;
+	GLuint _color3DTexID;
 
 	GLuint _psVertexBufferHandle;
 	GLuint _psVertexArrayObjectHandle;
@@ -64,20 +65,26 @@ private:
 	GLuint _displayLayerTextureVAOHandle;
 	
 	FramebufferObject *_fbo;
-	void initTexture3D(GLuint &RTT3D, int imageWidth, int imageHeight, int numOfLayers);
+	void initTexture3D(GLuint &RTT3D, int imageWidth, int imageHeight, int numOfLayers, bool isColorTexture);
 	void initializeVBO_VAO(float *vertices, int numOfPrimitive, GLuint &vboObject, GLuint &vaoObject);
 	void initializeVBO_VAO_DisplayLayerTexture(float *vertices, GLuint &vboObject, GLuint &vaoObject);
 	void displayLayedTexture(GLuint &texture);
 	int printOglError(char *file, int line);
 
 	struct cudaGraphicsResource *_cost3D_CUDAResource;
+	struct cudaGraphicsResource *_color3D_CUDAResource;
+
 	cudaArray *_cost3D_CUDAArray;
+	cudaArray *_color3D_CUDAArray;
 
 
 	void CUDA_SAFE_CALL( cudaError_t error, std::string fileName = __FILE__, int lineNum = __LINE__);
-	void doCudaProcessing(cudaArray *in_layeredArray);
+	void doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, cudaArray *syncView_CUDAArray);
 	unsigned int* _outArray;	// memory in GPU
 
+	texture2D _syncView;
+	cudaArray *_syncView_CUDAArray;
+	struct cudaGraphicsResource *_syncView_CUDAResource;
 };
 
 
