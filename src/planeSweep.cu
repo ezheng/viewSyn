@@ -92,7 +92,6 @@ __global__ void cudaProcess(unsigned char *out_array, int imageWidth, int imageH
 
 
 void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes, float *maskCUDA, int maskHalfSize)
-//void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes)
 {
 	CUDA_SAFE_CALL(cudaBindTextureToArray(layeredTex, cost3D_CUDAArray));
 	layeredTex.normalized = false;
@@ -109,7 +108,6 @@ void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray
 	//cudaProcess<<<grid, block >>>(out_array, imgWidth, imgHeight, numOfImages, numOfCandidatePlanes);
 	if ( cudaSuccess != cudaGetLastError() )
 	   printf( "Error!\n" );
-	//std::cout<< "image height: " << imgHeight << " image width: " << imgWidth << std::endl;
 
 	//CUDA_SAFE_CALL(cudaUnbindTexture(layeredTex));
 	//CUDA_SAFE_CALL(cudaUnbindTexture(colorTex));

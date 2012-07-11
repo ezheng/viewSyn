@@ -7,7 +7,7 @@
 #include <sstream>
 #include <cstdlib>
 #include <string>
-
+#include "utility.h"
 
 //extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
 extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes, 
@@ -47,15 +47,14 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 100;
+	_psParam._numOfPlanes = 190;
 	_psParam._numOfCameras  = 3;
-	_psParam._halfsizeOfMask = 0;
+	_psParam._halfsizeOfMask = 7;
 	//_psParam._nearPlane = 1;
 	//_psParam._farPlane = 10;
 
 //	_virtualImg.setProjMatrix(_psParam._nearPlane, _psParam._farPlane);
 	
-
 }
 
 void GLWidgetVirtualView::initTexture3D(GLuint & RTT3D, int imageWidth, int imageHeight, int numOfLayers, bool isColorTexture)
@@ -100,6 +99,7 @@ void GLWidgetVirtualView::initializeVBO_VAO(float *vertices, int numOfPrimitive,
 void GLWidgetVirtualView::initializeGL()
 {
 	glewInit();	// Initialize glew
+	CUDA_SAFE_CALL(cudaGLSetGLDevice(0));
 	// create an empty 2d texture for view synthesis
 	_syncView.create(NULL);	// just allocate memory, no image data is uploaded
 
@@ -159,13 +159,17 @@ void GLWidgetVirtualView::initializeGL()
 
 	// register the 3d texture so that CUDA can use it
 
-	//CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&cuda_tex_array_resource, projected3DTex, 
-	//			  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsNone));
-	CUDA_SAFE_CALL(cudaGLSetGLDevice(0));
+	size_t free, total; float mb = 1<<20;
+	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
+
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_cost3D_CUDAResource, _cost3DTexID, 
-				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsNone));// register the 3d texture
+				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsReadOnly));// register the 3d texture
+	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
+
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_color3D_CUDAResource, _color3DTexID, 
-				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsNone));// register the 3d texture
+				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsReadOnly));// register the 3d texture
+
+	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_syncView_CUDAResource, _syncView._textureID, 
 				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));// register the 3d texture
@@ -249,7 +253,9 @@ void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArra
 	int numOfImages = this->_psParam._numOfCameras;
 	unsigned int numOfCandidatePlanes = this->_psParam._numOfPlanes;
 
-	std::cout<< " number of images: " << numOfImages << std::endl;
+	// do gaussian filter:
+
+
 
 	if ( cudaSuccess != cudaGetLastError() )
 	   printf( "Error!\n" );
@@ -259,9 +265,17 @@ void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArra
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&_outArray, width * height * 4 * sizeof(GLubyte)));
 //	std::cout<<sizeof(GLubyte)<<std::endl;
+	
 
-	launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes, _maskCUDA, _psParam._halfsizeOfMask);
+	{
+		cudaTimer timer;
+		timer.start();
+		launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes, _maskCUDA, _psParam._halfsizeOfMask);
 	//launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes);
+
+		timer.stop();
+
+	}
 
 	CUDA_SAFE_CALL(cudaMemcpyToArray(syncView_CUDAArray, 0, 0, _outArray, height * width * 4 * sizeof(GLubyte),
 		cudaMemcpyDeviceToDevice));		// Copy the data back to the texture
