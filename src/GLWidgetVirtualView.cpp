@@ -9,9 +9,11 @@
 #include <string>
 
 
-extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
-
+//extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
+extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes, 
+	float *maskCUDA, int maskHalfSize);
 #define printOpenGLError() printOglError(__FILE__, __LINE__)
+#define CUDA_SAFE_CALL(err) _CUDA_SAFE_CALL(err, __FILE__, __LINE__)
 
 int GLWidgetVirtualView:: printOglError(char *file, int line)
 {
@@ -32,7 +34,7 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	const QList<GLWidget*>& imageQGLWidgets): 
 	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[0]),
 		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _psVertexBufferHandle(0),
-		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows)
+		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), _mask(NULL)
 {
 	int width, height;
 	if( (*allIms)->size() <1){	
@@ -45,9 +47,13 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 25;
+	_psParam._numOfPlanes = 100;
 	_psParam._numOfCameras  = 3;
+	_psParam._halfsizeOfMask = 0;
+	//_psParam._nearPlane = 1;
+	//_psParam._farPlane = 10;
 
+//	_virtualImg.setProjMatrix(_psParam._nearPlane, _psParam._farPlane);
 	
 
 }
@@ -164,12 +170,77 @@ void GLWidgetVirtualView::initializeGL()
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_syncView_CUDAResource, _syncView._textureID, 
 				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));// register the 3d texture
 
-	 
 	printOpenGLError();
 
-	
+	//
+	int sizeOfMask = _psParam._halfsizeOfMask; int fullsize = 2 * sizeOfMask + 1; float sigma = static_cast<float>(sizeOfMask);
+	_mask = new float[fullsize * fullsize](); int index = 0; float sum = 0;
+	for(int i = -sizeOfMask; i<=sizeOfMask; i++)
+		for(int j = -sizeOfMask; j<=sizeOfMask; j++)
+		{
+			_mask[index] = exp(-(i*i + j*j)/2.0f/sigma/sigma);
+			sum += _mask[index];
+			index++;
+		}
+	for(int i = 0; i< fullsize * fullsize; i++)
+	{
+		_mask[i]/= sum; 
+	}
+	float m = 0;
+	std::cout<< "CPU: \n" ;
+	for(int i = 0; i< fullsize; i++)
+	{
+		for(int j = 0; j< fullsize; j++)
+		{
+			std::cout<< _mask[i*fullsize + j]<< " ";
+			m += _mask[i*fullsize + j];
+		}
+		std::cout<< std::endl;
+	}
+	std::cout << m << std::endl;
+	CUDA_SAFE_CALL(cudaMalloc((void**)&_maskCUDA, fullsize * fullsize * sizeof(float)));
+	CUDA_SAFE_CALL(cudaMemcpy(_maskCUDA, _mask, fullsize * fullsize * sizeof(float), cudaMemcpyHostToDevice));
+
 }
 
+void GLWidgetVirtualView:: displayImage(GLuint texture, int imageWidth, int imageHeight)
+{
+	glUseProgram(0);
+	glClear(GL_COLOR_BUFFER_BIT);  
+	glActiveTexture(GL_TEXTURE0);
+	glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, texture);    
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	printOpenGLError();
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+
+    glMatrixMode( GL_MODELVIEW);
+	glPushMatrix();
+    glLoadIdentity();
+
+    glViewport(0, 0, imageWidth, imageHeight);
+	printOpenGLError();	
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0, 0.0); glVertex3f(-1.0, -1.0, 0.5);
+    glTexCoord2f(1.0, 0.0); glVertex3f(1.0, -1.0, 0.5);
+    glTexCoord2f(1.0, 1.0); glVertex3f(1.0, 1.0, 0.5);
+    glTexCoord2f(0.0, 1.0); glVertex3f(-1.0, 1.0, 0.5);
+    glEnd();
+	printOpenGLError();
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+//    glDisable(GL_TEXTURE_2D);
+	
+	printOpenGLError();
+	
+}
 
 void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, cudaArray *syncView_CUDAArray)
 {
@@ -187,9 +258,10 @@ void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArra
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&_outArray, width * height * 4 * sizeof(GLubyte)));
+//	std::cout<<sizeof(GLubyte)<<std::endl;
 
-	launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes);
-
+	launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes, _maskCUDA, _psParam._halfsizeOfMask);
+	//launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes);
 
 	CUDA_SAFE_CALL(cudaMemcpyToArray(syncView_CUDAArray, 0, 0, _outArray, height * width * 4 * sizeof(GLubyte),
 		cudaMemcpyDeviceToDevice));		// Copy the data back to the texture
@@ -198,7 +270,7 @@ void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArra
 
 }
 
-void GLWidgetVirtualView::CUDA_SAFE_CALL( cudaError_t err, std::string file, int line)
+void GLWidgetVirtualView::_CUDA_SAFE_CALL( cudaError_t err, std::string file, int line)
 {
    if (err != cudaSuccess) {
        // printf( "%s in %s at line %d\n", cudaGetErrorString( err ),
@@ -335,7 +407,8 @@ void GLWidgetVirtualView::paintGL()
 	//*****
 	
 	//displayLayedTexture(_cost3DTexID);
-	displayLayedTexture(_color3DTexID);
+	//displayLayedTexture(_color3DTexID);
+
 	printOpenGLError();
 
 	// do gaussian filter for each layer
@@ -359,6 +432,9 @@ void GLWidgetVirtualView::paintGL()
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_color3D_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
 
+	//displayImage( _imageQGLWidgets[0]->_tex._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
+	displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
+	
 	// that's it!!!	
 }
 
@@ -366,6 +442,7 @@ void GLWidgetVirtualView::mousePressEvent(QMouseEvent *event)
 {
 	_mouseX = event->x();
 	_mouseY = event->y();
+	std::cout<< "X: " << _mouseX << "Y: " << _mouseY << std::endl;
 }
 
 void GLWidgetVirtualView::mouseMoveEvent(QMouseEvent *event)

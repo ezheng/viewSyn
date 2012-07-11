@@ -32,9 +32,9 @@ void virtualImage::setModelViewMatrix()
 	
 }
 
-void virtualImage::setProjMatrix()
+void virtualImage::setProjMatrix(float near1,  float far1)
 {
-	float near1 = 0.1f;  float far1 = 200.0;
+	//float near1 = 0.1f;  float far1 = 200.0;
 
 	float bottom = - ((float) _image.rows  - _glmK[2][1])/_glmK[1][1]  * near1 ;	// focal length is in matrix K
 	float top    =  _glmK[2][1]/_glmK[1][1]  * near1 ;

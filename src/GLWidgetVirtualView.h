@@ -20,7 +20,9 @@ struct planeSweepParameters
 	int _virtualHeight;
 	unsigned int _numOfPlanes;
 	int _numOfCameras; // the number does not include the virtual view cam.
-
+	int _halfsizeOfMask;
+	int _nearPlane;
+	int _farPlane;
 };
 
 
@@ -78,13 +80,17 @@ private:
 	cudaArray *_color3D_CUDAArray;
 
 
-	void CUDA_SAFE_CALL( cudaError_t error, std::string fileName = __FILE__, int lineNum = __LINE__);
+	void _CUDA_SAFE_CALL( cudaError_t error, std::string fileName, int lineNum);
 	void doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, cudaArray *syncView_CUDAArray);
 	unsigned char* _outArray;	// memory in GPU
 
 	texture2D _syncView;
 	cudaArray *_syncView_CUDAArray;
 	struct cudaGraphicsResource *_syncView_CUDAResource;
+
+	void displayImage(GLuint texture, int imageWidth, int imageHeight);
+	float *_mask;	// mask for gaussian filter
+	float *_maskCUDA;
 };
 
 

@@ -37,7 +37,7 @@ public:
 	std::string _imageName;
 	cv::Mat _image;
 	void setModelViewMatrix();
-	void setProjMatrix();	
+	void setProjMatrix(float near1 = 0.5f,  float far1 = 0.6);	
 	void calcPlaneCoords();
 	
 	virtualImage( const image& im);
