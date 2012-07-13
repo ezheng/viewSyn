@@ -47,7 +47,7 @@ public:
 		float elapsedTime;
 		CUDA_SAFE_CALL( cudaEventElapsedTime( &elapsedTime, _start, _stop));
 
-		std::cout<< "kernel takes: " << elapsedTime << std::endl;
+		std::cout<< "kernel takes: " << elapsedTime <<" ms" << std::endl;
 	}
 
 private:
