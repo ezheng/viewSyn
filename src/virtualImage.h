@@ -33,11 +33,14 @@ public:
 	plane nearPlane;
 	plane farPlane;
 
+	float _near;
+	float _far;
 //-------------------
 	std::string _imageName;
 	cv::Mat _image;
 	void setModelViewMatrix();
-	void setProjMatrix(float near1 = 0.5f,  float far1 = 0.6);	
+	void setProjMatrix();	
+	void setProjMatrix(float nearDist, float farDist);
 	void calcPlaneCoords();
 	
 	virtualImage( const image& im);
@@ -45,6 +48,7 @@ public:
 
 private:
 	glm::vec3 dividew(glm::vec4 input);
+
 };
 
 

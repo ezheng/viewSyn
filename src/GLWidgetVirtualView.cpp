@@ -11,9 +11,9 @@
 #include <imdebuggl.h>
 #include "GaussianBlurCUDA.h"
 
-//extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
-extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes, 
-	float *maskCUDA, int maskHalfSize);
+extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
+extern void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmapView_CUDAArray,
+	int width, int height, unsigned int numOfCandidatePlanes, float near, float far, float step);
 #define printOpenGLError() printOglError(__FILE__, __LINE__)
 #define CUDA_SAFE_CALL(err) _CUDA_SAFE_CALL(err, __FILE__, __LINE__)
 
@@ -36,7 +36,8 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	const QList<GLWidget*>& imageQGLWidgets): 
 	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[0]),
 		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _psVertexBufferHandle(0),
-		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), _mask(NULL)
+		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
+		_depthmapView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), _display_Color_Depth(true)
 {
 	int width, height;
 	if( (*allIms)->size() <1){	
@@ -49,13 +50,14 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 25;
-	_psParam._numOfCameras  = 3;
-	_psParam._halfsizeOfMask = 7;
-	//_psParam._nearPlane = 1;
-	//_psParam._farPlane = 10;
+	_psParam._numOfPlanes = 100;
+	_psParam._numOfCameras  = 3;	
+	_psParam._gaussianSigma = 2.0f;
+	_psParam._near = 0.5f;
+	_psParam._far = 0.6f;
 
-//	_virtualImg.setProjMatrix(_psParam._nearPlane, _psParam._farPlane);
+	
+	_virtualImg.setProjMatrix(_psParam._near, _psParam._far);
 	
 }
 
@@ -104,7 +106,7 @@ void GLWidgetVirtualView::initializeGL()
 	CUDA_SAFE_CALL(cudaGLSetGLDevice(0));
 	// create an empty 2d texture for view synthesis
 	_syncView.create(NULL);	// just allocate memory, no image data is uploaded
-
+	_depthmapView.create(NULL);
 	//--------------------------------------------------------
 	// set up shader
 	std::string filePath = std::string(std::getenv("SHADER_FILE_PATH"));
@@ -165,48 +167,22 @@ void GLWidgetVirtualView::initializeGL()
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_cost3D_CUDAResource, _cost3DTexID, 
-				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsReadOnly));// register the 3d texture
+				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 3d texture
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_color3D_CUDAResource, _color3DTexID, 
-				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsSurfaceLoadStore));// register the 3d texture
+				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsReadOnly ));// register the 3d texture
 
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_syncView_CUDAResource, _syncView._textureID, 
-				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone));// register the 3d texture
+				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone ));// register the 2d texture
+
+	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_depthmap_CUDAResource, _depthmapView._textureID, 
+				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 2d surface texture
+
 
 	printOpenGLError();
-
-	//
-	int sizeOfMask = _psParam._halfsizeOfMask; int fullsize = 2 * sizeOfMask + 1; float sigma = static_cast<float>(sizeOfMask);
-	_mask = new float[fullsize * fullsize](); int index = 0; float sum = 0;
-	for(int i = -sizeOfMask; i<=sizeOfMask; i++)
-		for(int j = -sizeOfMask; j<=sizeOfMask; j++)
-		{
-			_mask[index] = exp(-(i*i + j*j)/2.0f/sigma/sigma);
-			sum += _mask[index];
-			index++;
-		}
-	for(int i = 0; i< fullsize * fullsize; i++)
-	{
-		_mask[i]/= sum; 
-	}
-	float m = 0;
-	std::cout<< "CPU: \n" ;
-	for(int i = 0; i< fullsize; i++)
-	{
-		for(int j = 0; j< fullsize; j++)
-		{
-			std::cout<< _mask[i*fullsize + j]<< " ";
-			m += _mask[i*fullsize + j];
-		}
-		std::cout<< std::endl;
-	}
-	std::cout << m << std::endl;
-	CUDA_SAFE_CALL(cudaMalloc((void**)&_maskCUDA, fullsize * fullsize * sizeof(float)));
-	CUDA_SAFE_CALL(cudaMemcpy(_maskCUDA, _mask, fullsize * fullsize * sizeof(float), cudaMemcpyHostToDevice));
-
 }
 
 void GLWidgetVirtualView:: displayImage(GLuint texture, int imageWidth, int imageHeight)
@@ -231,10 +207,10 @@ void GLWidgetVirtualView:: displayImage(GLuint texture, int imageWidth, int imag
     glViewport(0, 0, imageWidth, imageHeight);
 	printOpenGLError();	
     glBegin(GL_QUADS);
-    glTexCoord2f(0.0, 0.0); glVertex3f(-1.0, -1.0, 0.5);
-    glTexCoord2f(1.0, 0.0); glVertex3f(1.0, -1.0, 0.5);
-    glTexCoord2f(1.0, 1.0); glVertex3f(1.0, 1.0, 0.5);
-    glTexCoord2f(0.0, 1.0); glVertex3f(-1.0, 1.0, 0.5);
+    glTexCoord2f(0.0, 0.0); 	glVertex3f(-1.0, 1.0, 0.5);
+    glTexCoord2f(1.0, 0.0); 	glVertex3f(1.0, 1.0, 0.5);
+    glTexCoord2f(1.0, 1.0); 	glVertex3f(1.0, -1.0, 0.5);
+    glTexCoord2f(0.0, 1.0); 	glVertex3f(-1.0, -1.0, 0.5);
     glEnd();
 	printOpenGLError();
 
@@ -242,13 +218,12 @@ void GLWidgetVirtualView:: displayImage(GLuint texture, int imageWidth, int imag
     glPopMatrix();
 	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
-//    glDisable(GL_TEXTURE_2D);
-	
-	printOpenGLError();
-	
+//    glDisable(GL_TEXTURE_2D);	
+	printOpenGLError();	
 }
 
-void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, cudaArray *syncView_CUDAArray)
+void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, 
+	cudaArray *syncView_CUDAArray, cudaArray *depthmapView_CUDAArray)
 {
 	int width = this->_psParam._virtualWidth;
 	int height = this->_psParam._virtualHeight;
@@ -256,35 +231,38 @@ void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArra
 	unsigned int numOfCandidatePlanes = this->_psParam._numOfPlanes;
 
 	// do gaussian filter:
-
-
+	GaussianBlurCUDA gaussianF(width, height, _psParam._gaussianSigma);
+	gaussianF.Filter(cost3D_CUDAArray, _psParam._numOfPlanes);
 
 	if ( cudaSuccess != cudaGetLastError() )
 	   printf( "Error!\n" );
 
 	size_t free, total; float mb = 1<<20;
+	
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaMalloc((void**)&_outArray, width * height * 4 * sizeof(GLubyte)));
 	
+
 	// launch gaussian 
 
 //	{
 	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
-	CUDA_SAFE_CALL(cudaDeviceSynchronize());
+	
 		//cudaTimer timer;
 		//timer.start();
-	//	launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes, _maskCUDA, _psParam._halfsizeOfMask);
-	//launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes);
 		
-		GaussianBlurCUDA gaussianF(width, height, 2.0);
-		gaussianF.Filter(color3D_CUDAArray, _psParam._numOfPlanes);
+	if(_display_Color_Depth)
+		launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes);
+	else	
+		launchCudaGetDepthMap(cost3D_CUDAArray, depthmapView_CUDAArray, width, height, numOfCandidatePlanes, _psParam._near, _psParam._far, _step);
 
+
+		//gaussianF.Filter(color3D_CUDAArray, _psParam._numOfPlanes);
+		
 		//timer.stop();
 		
-		CUDA_SAFE_CALL(cudaDeviceSynchronize());
-		
-
+		//CUDA_SAFE_CALL(cudaDeviceSynchronize());
 		//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, 15);
 
 //	}
@@ -321,8 +299,6 @@ void GLWidgetVirtualView::initializeVBO_VAO_DisplayLayerTexture(float *vertices,
 	glEnableVertexAttribArray(VSShaderLib::TEXTURE_COORD_ATTRIB);
 	glVertexAttribPointer(VSShaderLib::TEXTURE_COORD_ATTRIB, 2,
 		GL_FLOAT, GL_FALSE, 0, (void *)48);	// 12 * sizeof(float)
-
-
 
 }
 
@@ -380,13 +356,11 @@ GLWidgetVirtualView::~GLWidgetVirtualView()
 void GLWidgetVirtualView::resizeGL(int w, int h)
 {
 	//glViewport(0, 0, w, h);
-	static int firstEntry= 0;
-	if(firstEntry == 0)
-	{	glViewport(0, 0, _psParam._virtualWidth, _psParam._virtualHeight); ++firstEntry;}
+	bool firstEntry= true;
+	if(firstEntry)
+	{	glViewport(0, 0, _psParam._virtualWidth, _psParam._virtualHeight); firstEntry = false;}
 	else
-		glViewport(0, 0, w, h);
-
-	
+		glViewport(0, 0, w, h);	
 }
 
 void GLWidgetVirtualView::paintGL()
@@ -397,8 +371,8 @@ void GLWidgetVirtualView::paintGL()
 	//---------------------
 	// set up the uniforms: images, transformation matrix, etc...
 	glUseProgram(_shaderHandle.getProgramIndex());
-	float step = 2.0f / static_cast<float>(_psParam._numOfPlanes + 1);
-	_shaderHandle.setUniform("step", &step);
+	_step = 2.0f / static_cast<float>(_psParam._numOfPlanes + 1);
+	_shaderHandle.setUniform("step", &_step);
 	printOpenGLError();
 	// matrix:
 	glm::mat4 projScaleTrans = glm::translate(glm::vec3(0.5f)) * glm::scale(glm::vec3(0.5f));
@@ -458,19 +432,26 @@ void GLWidgetVirtualView::paintGL()
 	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_color3D_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_color3D_CUDAArray, _color3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
 
+	if(_display_Color_Depth){
 	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_syncView_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_syncView_CUDAArray, _syncView_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	}else{
+	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_depthmap_CUDAResource, 0));
+	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_depthmapView_CUDAArray, _depthmap_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	}
 	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
-	doCudaProcessing(_cost3D_CUDAArray, _color3D_CUDAArray, _syncView_CUDAArray);
+	doCudaProcessing(_cost3D_CUDAArray, _color3D_CUDAArray, _syncView_CUDAArray, _depthmapView_CUDAArray);
 
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_cost3D_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_color3D_CUDAResource, 0));
-	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
+	if(_display_Color_Depth) CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
+	else CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap_CUDAResource, 0));
 
 	//displayImage( _imageQGLWidgets[0]->_tex._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
-	//displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
-	displayLayedTexture(_color3DTexID);
-	
+	if(_display_Color_Depth)
+		displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
+	else
+		displayImage(_depthmapView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
 	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
 
 	// that's it!!!	
@@ -481,6 +462,12 @@ void GLWidgetVirtualView::mousePressEvent(QMouseEvent *event)
 	_mouseX = event->x();
 	_mouseY = event->y();
 	std::cout<< "X: " << _mouseX << "Y: " << _mouseY << std::endl;
+}
+
+void GLWidgetVirtualView::mouseDoubleClickEvent(QMouseEvent *event)
+{
+	_display_Color_Depth = !_display_Color_Depth;
+	updateGL();
 }
 
 void GLWidgetVirtualView::mouseMoveEvent(QMouseEvent *event)

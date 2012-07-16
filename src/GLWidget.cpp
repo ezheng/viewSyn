@@ -26,7 +26,6 @@ GLWidget::GLWidget(image *im, int id, const QGLWidget * shareWidget) : QGLWidget
 	_id = id;		
 }
 
-
 void GLWidget::initializeGL() {
 	// upload texture
 	glEnable(GL_TEXTURE_2D);

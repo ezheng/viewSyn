@@ -48,6 +48,7 @@ void GLWidgetAllImgs :: initializeGL(){
 
 
 
+
 void GLWidgetAllImgs::mousePressEvent(QMouseEvent *event)
 {
 	_mouseX = event->x();

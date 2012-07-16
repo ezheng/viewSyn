@@ -32,20 +32,27 @@ void virtualImage::setModelViewMatrix()
 	
 }
 
-void virtualImage::setProjMatrix(float near1,  float far1)
+void virtualImage::setProjMatrix()
 {
 	//float near1 = 0.1f;  float far1 = 200.0;
 
-	float bottom = - ((float) _image.rows  - _glmK[2][1])/_glmK[1][1]  * near1 ;	// focal length is in matrix K
-	float top    =  _glmK[2][1]/_glmK[1][1]  * near1 ;
-	float left   = -_glmK[2][0]/_glmK[0][0]  * near1 ;
-	float right	 =  ((float)_image.cols - _glmK[2][0])/_glmK[0][0]  * near1;
+	float bottom = - ((float) _image.rows  - _glmK[2][1])/_glmK[1][1]  * _near ;	// focal length is in matrix K
+	float top    =  _glmK[2][1]/_glmK[1][1]  * _near ;
+	float left   = -_glmK[2][0]/_glmK[0][0]  * _near ;
+	float right	 =  ((float)_image.cols - _glmK[2][0])/_glmK[0][0]  * _near;
 	//float bottom = -( ((float) _image.rows  - _glmK[1][2])/_glmK[1][1] ) * near1 ;	// focal length is in matrix K
 	//float top    = ( _glmK[1][2]/_glmK[1][1] ) * near1 ;
 	//float left   = -( _glmK[0][2]/_glmK[0][0] ) * near1 ;
 	//float right	 = ( ((float)_image.cols - _glmK[0][2])/_glmK[0][0] ) * near1;
 
-	_projMatrix = glm::frustum(left,right,bottom,top,near1,far1);
+	_projMatrix = glm::frustum(left,right,bottom,top,_near,_far);
+}
+
+void virtualImage::setProjMatrix(float nearDist, float farDist)
+{	
+	_near = nearDist;
+	_far = farDist;
+	this->setProjMatrix();
 }
 
 void virtualImage::calcPlaneCoords()

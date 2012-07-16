@@ -20,9 +20,9 @@ struct planeSweepParameters
 	int _virtualHeight;
 	unsigned int _numOfPlanes;
 	int _numOfCameras; // the number does not include the virtual view cam.
-	int _halfsizeOfMask;
-	int _nearPlane;
-	int _farPlane;
+	float _near;
+	float _far;
+	float _gaussianSigma;
 };
 
 
@@ -39,13 +39,14 @@ private:
 	glm::vec3 _objCenterPos;
 	QList<GLWidget*> _imageQGLWidgets;
 	virtualImage _virtualImg;	// the position will be changed
-
+	float _step;
 protected:
 	void initializeGL();
 	void resizeGL(int w, int h);
 	void paintGL();
 	void mousePressEvent(QMouseEvent *event);
 	void mouseMoveEvent(QMouseEvent *event);
+	void mouseDoubleClickEvent(QMouseEvent *event);
 
 	int _mouseX;
 	int _mouseY;
@@ -75,22 +76,26 @@ private:
 
 	struct cudaGraphicsResource *_cost3D_CUDAResource;
 	struct cudaGraphicsResource *_color3D_CUDAResource;
+	struct cudaGraphicsResource *_syncView_CUDAResource;
+	struct cudaGraphicsResource *_depthmap_CUDAResource;
 
 	cudaArray *_cost3D_CUDAArray;
 	cudaArray *_color3D_CUDAArray;
+	cudaArray *_syncView_CUDAArray;
+	cudaArray *_depthmapView_CUDAArray;
 
 
 	void _CUDA_SAFE_CALL( cudaError_t error, std::string fileName, int lineNum);
-	void doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, cudaArray *syncView_CUDAArray);
+	void doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, cudaArray *syncView_CUDAArray, cudaArray *depthmapView_CUDAArray);
 	unsigned char* _outArray;	// memory in GPU
 
 	texture2D _syncView;
-	cudaArray *_syncView_CUDAArray;
-	struct cudaGraphicsResource *_syncView_CUDAResource;
+	texture2D _depthmapView;
+	
+	bool _display_Color_Depth;
 
 	void displayImage(GLuint texture, int imageWidth, int imageHeight);
-	float *_mask;	// mask for gaussian filter
-	float *_maskCUDA;
+	
 };
 
 

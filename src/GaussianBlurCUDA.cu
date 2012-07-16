@@ -19,10 +19,11 @@
 __device__ __constant__ float g_Kernel[KERNEL_MAX_WIDTH]; 
 
 // declare texture reference for 2D float texture
-texture<float, 2, cudaReadModeElementType> tex32F0;
+//texture<float, 2, cudaReadModeElementType> tex32F0;
 
 
-surface<void, cudaSurfaceType3D> colorTex_Surface3D;
+//surface<void, cudaSurfaceType3D> colorTex_Surface3D;
+surface<void, cudaSurfaceType3D> cost_Surface3D;
 surface<void, cudaSurfaceType2D> temp_Surface2D;
 
 
@@ -52,26 +53,28 @@ template<int FR> __global__ void convolutionRowsKernel( int imageW, int imageH, 
 	
 	if(ix <imageW && iy<imageH)
 	{
-		uchar4 sum = make_uchar4(0, 0, 0, 0);
-		uchar4 data;
+		//uchar4 sum = make_uchar4(0, 0, 0, 0);
+		//uchar4 data;
+		float sum = 0;
+		float data;
 	  //  for(int k = -FR; k <= FR; k++){ sum += tex2D(tex32F0, x + (float)k, y) * g_Kernel[FR - k]; }
 #pragma unroll
 		for(int k = -FR; k <= FR; k++)
 		{
 			//sum += tex2D(tex32F0, x + (float)k, y) * g_Kernel[FR - k];	
 			//surf3Dread(&data, colorTex_Surface3D, 0, 0, layerId, cudaBoundaryModeClamp);
-			surf3Dread(&data, colorTex_Surface3D, (ix + k) * 4, iy, layerId, cudaBoundaryModeClamp);			
-			sum.x += data.x * g_Kernel[FR - k];
-			sum.y += data.y * g_Kernel[FR - k];
-			sum.z += data.z * g_Kernel[FR - k];			
+			//surf3Dread(&data, colorTex_Surface3D, (ix + k) * 4, iy, layerId, cudaBoundaryModeClamp);			
+			surf3Dread(&data, cost_Surface3D, (ix + k) * 4, iy, layerId, cudaBoundaryModeClamp);			
+			//sum.x += data.x * g_Kernel[FR - k];
+			//sum.y += data.y * g_Kernel[FR - k];
+			//sum.z += data.z * g_Kernel[FR - k];
+			sum += (data * g_Kernel[FR - k]);
 		}
-		if(ix==0 && iy<479 && layerId == 0)
-		{printf("x: %u, y: %u, z: %u, w: %u\n", sum.x, sum.x, sum.z, sum.w);}
-		sum.w = 255;
+		//if(ix==0 && iy<479 && layerId == 0)
+		//{printf("x: %u, y: %u, z: %u, w: %u\n", sum.x, sum.x, sum.z, sum.w);}
+		//sum.w = 255;
 		surf2Dwrite(sum, temp_Surface2D, ix * 4, iy, cudaBoundaryModeTrap);
 	} 
-
-	//d_Dst[ IMAD(iy, imageW, ix) ] = sum;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,22 +87,23 @@ template<int FR> __global__ void convolutionColsKernel( int imageW, int imageH, 
 
 	if(ix <imageW && iy<imageH)
 	{
-		uchar4 sum = make_uchar4(0, 0, 0, 0);
-		uchar4 data;
+		//uchar4 sum = make_uchar4(0, 0, 0, 0);
+		//uchar4 data;
+		float sum = 0;
+		float data;
 	  //for(int k = -FR; k <= FR; k++){ sum += tex2D(tex32F0, x, y + (float)k) * g_Kernel[FR - k]; }
 		for(int k = -FR; k <= FR; k++)
 		{
 			//sum += tex2D(tex32F0, x + (float)k, y) * g_Kernel[FR - k];
 			surf2Dread(&data, temp_Surface2D, ix * 4, iy + k, cudaBoundaryModeClamp);
-			sum.x += data.x * g_Kernel[FR - k];
-			sum.y += data.y * g_Kernel[FR - k];
-			sum.z += data.z * g_Kernel[FR - k];
+			sum += (data * g_Kernel[FR - k]);
+			//sum.x += data.x * g_Kernel[FR - k];
+			//sum.y += data.y * g_Kernel[FR - k];
+			//sum.z += data.z * g_Kernel[FR - k];
 		}
-		sum.w = 255;
-		surf3Dwrite(sum, colorTex_Surface3D, ix * 4, iy, layerId, cudaBoundaryModeTrap);
-	} 
-
-	//d_Dst[IMAD(iy, imageW, ix)] = sum;
+		//sum.w = 255;
+		surf3Dwrite(sum, cost_Surface3D, ix * 4, iy, layerId, cudaBoundaryModeTrap);
+	}
 }
 
 
@@ -167,10 +171,9 @@ template<int FR> void GaussianBlurCUDA::FilterImage(cudaArray *array3D, int numO
     dim3 blocks( iDivUp(m_nWidth, threads.x), iDivUp(m_nHeight, threads.y) ); //number of blocks required
 
 	// horizontal pass
-	CUDA_SAFE_CALL(cudaBindSurfaceToArray(colorTex_Surface3D, array3D));
+	//CUDA_SAFE_CALL(cudaBindSurfaceToArray(colorTex_Surface3D, array3D));
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(cost_Surface3D, array3D));
 	CUDA_SAFE_CALL(cudaBindSurfaceToArray(temp_Surface2D, _temp2DArray));
-
-
 	
 	//horizontal pass:
 	//cudaBindTextureToArray(tex32F0, src);

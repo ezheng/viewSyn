@@ -96,20 +96,17 @@ void main()
 		if(t0 == true)
 		{
 			meanCost = meanCost +  float(pow(projTexColor0.x - baseColor.x, 2)) + float(pow(projTexColor0.y - baseColor.y, 2)) + float(pow(projTexColor0.z - baseColor.z, 2));
-			meanColor.xyz = meanColor.xyz + projTexColor0.xyz;
-			return;
+			meanColor.xyz = meanColor.xyz + projTexColor0.xyz;			
 		}
 		if(t1 == true)
 		{
 			meanCost = meanCost +  float(pow(projTexColor1.x - baseColor.x, 2)) + float(pow(projTexColor1.y - baseColor.y, 2)) + float(pow(projTexColor1.z - baseColor.z, 2));
-			meanColor.xyz = meanColor.xyz + projTexColor1.xyz;
-			return;
+			meanColor.xyz = meanColor.xyz + projTexColor1.xyz;			
 		}
 		if(t2 == true)
 		{
 			meanCost = meanCost +  float(pow(projTexColor2.x - baseColor.x, 2)) + float(pow(projTexColor2.y - baseColor.y, 2)) + float(pow(projTexColor2.z - baseColor.z, 2));
 			meanColor.xyz = meanColor.xyz + projTexColor2.xyz;
-			return;
 		}
 		meanColor.xyz = meanColor.xyz/numOfViews;
 
