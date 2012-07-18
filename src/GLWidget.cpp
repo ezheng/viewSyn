@@ -173,8 +173,6 @@ void GLWidget::drawLine( cv::Mat &line)
 	_y1 = (_im->_image.rows - y1) /_im->_image.rows; 
 	_y2 = (_im->_image.rows - y2) /_im->_image.rows;
 
-	//std::cout << "(x1, y1): " << "(" << x1 << "," <<  y1 << ")" << std::endl;
-	//std::cout << "(x2, y2): " << "(" << x2 << "," <<  y2 << ")" << std::endl;
 }
 
 

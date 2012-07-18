@@ -204,7 +204,7 @@ void GLWidgetAllImgs :: drawObjectScope()
 
 void GLWidgetAllImgs :: paintGL(){
 	display();
-}	
+}
 
 void GLWidgetAllImgs::drawCoordinate()
 {

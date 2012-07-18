@@ -9,6 +9,7 @@
 #include <string>
 #include "utility.h"
 #include <imdebuggl.h>
+#include <fstream>
 #include "GaussianBlurCUDA.h"
 
 extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
@@ -50,15 +51,20 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 100;
-	_psParam._numOfCameras  = 3;	
-	_psParam._gaussianSigma = 2.0f;
+	_psParam._numOfPlanes = 120;
+	_psParam._numOfCameras  = 6;	
+	_psParam._gaussianSigma = 1.0f;
 	_psParam._near = 0.5f;
 	_psParam._far = 0.6f;
 
-	
 	_virtualImg.setProjMatrix(_psParam._near, _psParam._far);
-	
+
+	// prepare the shader file given the number of cameras available
+	std::string filePath = std::string(std::getenv("SHADER_FILE_PATH"));
+	_warpingGeoFileName = filePath + "\\warping.geom";
+	_warpingFragFileName = filePath + "\\warping.frag";
+	writeGeometryShaderFile(_warpingGeoFileName);
+	writeFragmentShaderFile(_warpingFragFileName);
 }
 
 void GLWidgetVirtualView::initTexture3D(GLuint & RTT3D, int imageWidth, int imageHeight, int numOfLayers, bool isColorTexture)
@@ -114,7 +120,7 @@ void GLWidgetVirtualView::initializeGL()
 	_shaderHandle.init();
 	_shaderHandle.loadShader(VSShaderLib::VERTEX_SHADER, (filePath + "\\warping.vert").c_str());
 	std::cout<<"vertex shader: " << _shaderHandle.getShaderInfoLog(VSShaderLib::VERTEX_SHADER)<<std::endl;
-	_shaderHandle.loadShader(VSShaderLib::GEOMETRY_SHADER, (filePath + "\\warping.geom").c_str());
+	_shaderHandle.loadShader(VSShaderLib::GEOMETRY_SHADER, _warpingGeoFileName.c_str());
 	std::cout<<"geometry shader: " << _shaderHandle.getShaderInfoLog(VSShaderLib::GEOMETRY_SHADER)<<std::endl;
 	_shaderHandle.loadShader(VSShaderLib::FRAGMENT_SHADER, (filePath + "\\warping.frag").c_str());
 	std::cout<<"fragment shader: " << _shaderHandle.getShaderInfoLog(VSShaderLib::FRAGMENT_SHADER)<< std::endl;
@@ -162,7 +168,6 @@ void GLWidgetVirtualView::initializeGL()
 	printOpenGLError();
 
 	// register the 3d texture so that CUDA can use it
-
 	size_t free, total; float mb = 1<<20;
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
@@ -233,19 +238,10 @@ void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArra
 	// do gaussian filter:
 	GaussianBlurCUDA gaussianF(width, height, _psParam._gaussianSigma);
 	gaussianF.Filter(cost3D_CUDAArray, _psParam._numOfPlanes);
-
-	if ( cudaSuccess != cudaGetLastError() )
-	   printf( "Error!\n" );
-
-	size_t free, total; float mb = 1<<20;
-	
+		
+	size_t free, total; float mb = 1<<20;	
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
-
 	CUDA_SAFE_CALL(cudaMalloc((void**)&_outArray, width * height * 4 * sizeof(GLubyte)));
-	
-
-	// launch gaussian 
-
 //	{
 	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
 	
@@ -256,22 +252,17 @@ void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArra
 		launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes);
 	else	
 		launchCudaGetDepthMap(cost3D_CUDAArray, depthmapView_CUDAArray, width, height, numOfCandidatePlanes, _psParam._near, _psParam._far, _step);
-
-
 		//gaussianF.Filter(color3D_CUDAArray, _psParam._numOfPlanes);
 		
 		//timer.stop();
 		
 		//CUDA_SAFE_CALL(cudaDeviceSynchronize());
 		//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, 15);
-
 //	}
-
 	CUDA_SAFE_CALL(cudaMemcpyToArray(syncView_CUDAArray, 0, 0, _outArray, height * width * 4 * sizeof(GLubyte),
  		cudaMemcpyDeviceToDevice));		// Copy the data back to the texture
 
 	CUDA_SAFE_CALL(cudaFree((void*)_outArray));
-
 }
 
 void GLWidgetVirtualView::_CUDA_SAFE_CALL( cudaError_t err, std::string file, int line)
@@ -299,7 +290,6 @@ void GLWidgetVirtualView::initializeVBO_VAO_DisplayLayerTexture(float *vertices,
 	glEnableVertexAttribArray(VSShaderLib::TEXTURE_COORD_ATTRIB);
 	glVertexAttribPointer(VSShaderLib::TEXTURE_COORD_ATTRIB, 2,
 		GL_FLOAT, GL_FALSE, 0, (void *)48);	// 12 * sizeof(float)
-
 }
 
 void GLWidgetVirtualView::displayLayedTexture(GLuint &texture)
@@ -346,7 +336,6 @@ void GLWidgetVirtualView::displayLayedTexture(GLuint &texture)
 	glPopMatrix();
 }
 
-
 GLWidgetVirtualView::~GLWidgetVirtualView()
 {
 	if(_fbo != NULL)
@@ -373,22 +362,22 @@ void GLWidgetVirtualView::paintGL()
 	glUseProgram(_shaderHandle.getProgramIndex());
 	_step = 2.0f / static_cast<float>(_psParam._numOfPlanes + 1);
 	_shaderHandle.setUniform("step", &_step);
-	printOpenGLError();
-	// matrix:
+		// matrix:
 	glm::mat4 projScaleTrans = glm::translate(glm::vec3(0.5f)) * glm::scale(glm::vec3(0.5f));
 	glm::mat4 virtInverseModelViewProj = glm::inverse(_virtualImg._modelViewMatrix) 
 		* glm::inverse(_virtualImg._projMatrix);
-	
 	// *****
-	int numOfImages = 3;
+	int numOfImages = _psParam._numOfCameras;
 	glm::mat4 *modelViewProj = new glm::mat4[numOfImages];
+	float *allTransformMatrix = new float[16 * numOfImages];
 	for(int i = 0; i < numOfImages; i++)
 	{
 		modelViewProj[i] = (**_allIms)[i]._projMatrix * (**_allIms)[i]._modelViewMatrix;
 		glm::mat4x4 transformMatrix = projScaleTrans * modelViewProj[i] * virtInverseModelViewProj;
+		std::copy ( &(transformMatrix[0][0]), &(transformMatrix[0][0]) + 16, allTransformMatrix + 16 * i );
 		std::stringstream ss; ss<<i;
-		std::string uniformVarName = "transformMatrix" + ss.str();
-		_shaderHandle.setUniform( uniformVarName.c_str(), &transformMatrix[0][0]);
+		//std::string uniformVarName = "transformMatrix" + ss.str();
+		//_shaderHandle.setUniform( uniformVarName.c_str(), &transformMatrix[0][0]);
 		printOpenGLError();
 		// images:
 		glActiveTexture(GL_TEXTURE0 + i);
@@ -396,6 +385,7 @@ void GLWidgetVirtualView::paintGL()
 		_shaderHandle.setUniform(("tex" + ss.str()).c_str(), &i);
 		printOpenGLError();
 	}
+	_shaderHandle.setUniform( "transformMatrix[0]", allTransformMatrix);
 	printOpenGLError();
 	
 	// bind to fbo
@@ -407,6 +397,8 @@ void GLWidgetVirtualView::paintGL()
 	glBindVertexArray(_psVertexArrayObjectHandle);
 	printOpenGLError();
 	glDrawArraysInstanced(GL_POINTS, 0, 1, _psParam._numOfPlanes); 
+
+	
 
 	// unbind fbo, vao
 	glBindVertexArray(0);
@@ -421,8 +413,6 @@ void GLWidgetVirtualView::paintGL()
 	printOpenGLError();
 
 	// do gaussian filter for each layer
-
-
 	// --------------------------------- By doing this I get the layered texture 
 
 	//  map the texture to CUDA, and then find the colors, and then render by writing a cuda kernel
@@ -442,6 +432,11 @@ void GLWidgetVirtualView::paintGL()
 	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
 	doCudaProcessing(_cost3D_CUDAArray, _color3D_CUDAArray, _syncView_CUDAArray, _depthmapView_CUDAArray);
 
+	// compare results 
+	
+
+
+
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_cost3D_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_color3D_CUDAResource, 0));
 	if(_display_Color_Depth) CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
@@ -456,6 +451,66 @@ void GLWidgetVirtualView::paintGL()
 
 	// that's it!!!	
 }
+
+void GLWidgetVirtualView::computeImageError()
+{
+	// the image array
+	glm::mat4x4 oldProjMatrix = _virtualImg._projMatrix;
+	glm::mat4x4 oldModelviewMatrix = _virtualImg._modelViewMatrix;
+
+	float cost = 0;
+	// _virtual view: _syncView._textureID
+	for(int i = 0; i<_psParam._numOfCameras; i++)
+	{
+		_virtualImg._projMatrix = (**_allIms)[i]._projMatrix;
+		_virtualImg._modelViewMatrix = (**_allIms)[i]._modelViewMatrix;
+		makeCurrent();		
+		paintGL();
+		cost += computeErrorForOneImage(_syncView._textureID, _imageQGLWidgets[i]->_tex._textureID );
+	}
+	_virtualImg._projMatrix = oldProjMatrix;
+	_virtualImg._modelViewMatrix = oldModelviewMatrix;
+
+	std::cout << " the average cost is: " << cost << std::endl;
+	updateGL();
+
+}
+
+float GLWidgetVirtualView::computeErrorForOneImage(int texture1, int texture2)
+{
+	// read back the value
+//	imdebugTexImage(GL_TEXTURE_2D, texture1, GL_RGBA);
+//	imdebugTexImage(GL_TEXTURE_2D, texture2, GL_RGBA);
+
+	int w, h;
+  int prevTexBind;
+  glGetIntegerv(GL_TEXTURE_2D, &prevTexBind);
+  glBindTexture(GL_TEXTURE_2D, texture1);
+  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
+  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
+ 
+  //
+   GLubyte *data1 = new GLubyte[w * h * 4 ];
+   GLubyte *data2 = new GLubyte[w * h * 4 ];
+   glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data1 );
+
+   glBindTexture(GL_TEXTURE_2D, texture2);
+   glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, data2 );
+
+   float cost = 0;
+   for(int i = 0; i < w * h; i += 4)
+	{
+		cost += abs(data1[i] - data2[i]);
+		cost += abs(data1[i+1] - data2[i+1]);
+		cost += abs(data1[i+2] - data2[i+2]);
+	}   
+  cost = cost / (w * h * 3);
+  glBindTexture(GL_TEXTURE_2D, prevTexBind);
+  delete data1;
+  delete data2;
+  return cost;
+}
+
 
 void GLWidgetVirtualView::mousePressEvent(QMouseEvent *event)
 {
@@ -521,4 +576,82 @@ void GLWidgetVirtualView::mouseMoveEvent(QMouseEvent *event)
 	_mouseY = event->y();
 
 	updateGL();
+}
+
+void GLWidgetVirtualView::writeGeometryShaderFile( std::string fileName)
+{
+	std::ofstream inF(fileName);
+	std::stringstream ss; ss<<_psParam._numOfCameras;
+
+	std::string s;
+	s += "#version 420\n";
+	s += "layout(points) in;\n";
+	s += "layout(triangle_strip, max_vertices = 4) out;\n";
+	s += "uniform mat4x4 transformMatrix[" + ss.str() + "];\n";
+	s += "uniform float step;\n";
+	s += "in int instanceID[];\n";
+	s += "out vec4 ProjTexCoord[" + ss.str() + "];\n";
+	s += "void main() {";
+	s += "float depth = -1.0f + step * float( instanceID[0] + 1);	float length  = 1.0f;\n";
+	//
+	s += "gl_Position = gl_in[0].gl_Position + vec4( -length, -length, depth , 0.0f);\n";
+	s += "for(int i = 0; i< transformMatrix.length; i++) {ProjTexCoord[i] = transformMatrix[i] * gl_Position;}\n";
+	s += "gl_Layer = instanceID[0];\n EmitVertex();\n";
+	//
+	s += "gl_Position = gl_in[0].gl_Position + vec4( -length, length, depth , 0.0f);\n";
+	s += "for(int i = 0; i< transformMatrix.length; i++) {ProjTexCoord[i] = transformMatrix[i] * gl_Position;}\n";
+	s += "gl_Layer = instanceID[0];\n EmitVertex();\n";
+	//
+	s += "gl_Position = gl_in[0].gl_Position + vec4( length, -length, depth , 0.0f);\n";
+	s += "for(int i = 0; i< transformMatrix.length; i++) {ProjTexCoord[i] = transformMatrix[i] * gl_Position;}\n";
+	s += "gl_Layer = instanceID[0];\n EmitVertex();\n";
+	//
+	s += "gl_Position = gl_in[0].gl_Position + vec4( length, length, depth , 0.0f);\n";
+	s += "for(int i = 0; i< transformMatrix.length; i++) {ProjTexCoord[i] = transformMatrix[i] * gl_Position;}\n";
+	s += "gl_Layer = instanceID[0];\n EmitVertex();\n";
+	//
+	s += "EndPrimitive();}";
+	inF << s << std::endl;
+	inF.close();
+}
+
+void GLWidgetVirtualView::writeFragmentShaderFile(std::string fileName)
+{
+	std::ofstream inF(fileName);
+	std::stringstream ss; //ss<<_psParam._numOfCameras;
+
+	std::string s;
+//-----
+	ss<< _psParam._numOfCameras;
+	s += "#version 420\nin vec4 ProjTexCoord[" + ss.str() +"];\n";
+	for( int i = 0; i<_psParam._numOfCameras; i++)
+	{
+		ss.str(std::string());
+		ss<<i;
+		s += "uniform sampler2D tex" + ss.str() + ";\n";
+	}
+	s += "layout(location = 0) out float meanCost;\n layout(location = 1) out vec4 meanColor;\n";
+	s += "void main()\n{\n";
+	ss.str(std::string());
+	ss << _psParam._numOfCameras;
+	s += "vec4 projTexColor["+ss.str() +"];\nbool t[" + ss.str() + "];\n";
+	s += "for(int i = 0; i<" + ss.str() +"; i++)\n{t[i] = false;}\n";
+	s += "vec4 baseColor = vec4(0,0,0,0);\nfloat numOfViews = 0;\n";
+	for( int i = 0; i<_psParam._numOfCameras; i++)
+	{
+		ss.str(std::string());
+		ss<<i;
+		s += "if(ProjTexCoord["+ ss.str() + "].x/ProjTexCoord["+ss.str()+"].w > 0 && ProjTexCoord["+ss.str()+"].x/ProjTexCoord["+ss.str()+"].w <1.0 && ProjTexCoord["+ss.str()+"].y/ProjTexCoord["+ss.str()+"].w > 0 && ProjTexCoord["+ss.str()+"].y/ProjTexCoord["+ss.str()+"].w < 1.0 && ProjTexCoord["+ss.str()+"].z > 0.0f)\n";
+		s += "{\n projTexColor["+ ss.str() + "] = textureProj(tex"+ ss.str() + ", ProjTexCoord["+ ss.str() + "]);\n";
+		s += "baseColor = baseColor + projTexColor["+ ss.str() + "];\nnumOfViews = numOfViews + 1.0;\nt["+ ss.str() + "] = true;\n}\n";
+	}
+	s += "meanColor = vec4(0,0,0,1.0f);\nif(numOfViews <=1){\nmeanCost = 1000000.0f;\n}\nelse\n{\n";
+	s += "baseColor = baseColor/numOfViews;\nmeanCost = 0.0f;\n";
+
+	s += "for(int i = 0; i<projTexColor.length(); i++)\n{\nif(t[i] == true){\n";
+	s += "meanCost = meanCost +  float(pow(projTexColor[i].x - baseColor.x, 2)) + float(pow(projTexColor[i].y - baseColor.y, 2)) + float(pow(projTexColor[i].z - baseColor.z, 2));\n";
+	s += "meanColor.xyz = meanColor.xyz + projTexColor[i].xyz;\n}\n}\nmeanColor.xyz = meanColor.xyz/numOfViews;\n}\n}\n";
+//-----
+	inF << s << std::endl;
+	inF.close();
 }

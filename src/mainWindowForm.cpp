@@ -20,6 +20,8 @@ mainWindowForm::mainWindowForm(void): _busHandler(NULL), _imagesForm(NULL), _all
 	QObject::connect(ui.actionStart_Capture, SIGNAL(triggered()), this, SLOT(startCapture_slot()));
 	QObject::connect(ui.actionView_Synthesis, SIGNAL(triggered()), this, SLOT(startViewSynthesis_slot()));
 	
+
+	
 	_timer.setInterval(30);
 	QObject::connect(&_timer, SIGNAL(timeout()), this, SLOT(retrieveImages()), Qt::QueuedConnection);  
 
@@ -36,7 +38,10 @@ mainWindowForm::mainWindowForm(void): _busHandler(NULL), _imagesForm(NULL), _all
 void mainWindowForm::startViewSynthesis_slot()
 {
 	if( _virtualViewForm == NULL)
+	{
 		_virtualViewForm = new GLWidgetVirtualView( &_allImages, _widgetForContext, _imagesForm->_glWidgets);
+		QObject::connect(ui.actionPrint_Error, SIGNAL(triggered()), _virtualViewForm, SLOT(computeImageError()), Qt::UniqueConnection);
+	}
 	else 
 		return;
 
@@ -46,7 +51,7 @@ void mainWindowForm::startViewSynthesis_slot()
 	//--------------------------------------------------------------------
 	QMdiSubWindow *subWindow2 = new QMdiSubWindow();	
 	QObject::connect( _virtualViewForm, SIGNAL(updateVirtualView_signal(virtualImage)), _allImagesForm, SLOT(updateVirtualView_slot(virtualImage)));
-
+	
 
 	std::cout<< "width: " << _virtualViewForm->geometry().width() << std::endl;
 	std::cout<< "height: " << _virtualViewForm->geometry().height() << std::endl;

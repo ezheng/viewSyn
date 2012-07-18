@@ -54,6 +54,9 @@ protected:
 signals:
 	void updateVirtualView_signal(virtualImage virImg);
 
+public slots:
+	void computeImageError();
+
 private:
 	VSShaderLib _shaderHandle;
 	VSShaderLib _shaderHandleDisplayLayerTexture;
@@ -95,7 +98,13 @@ private:
 	bool _display_Color_Depth;
 
 	void displayImage(GLuint texture, int imageWidth, int imageHeight);
-	
+
+	std::string _warpingGeoFileName;
+	std::string _warpingFragFileName;
+	void writeGeometryShaderFile( std::string fileName);
+	void writeFragmentShaderFile(std::string fileName);
+
+	float computeErrorForOneImage(int texture1, int texture2);
 };
 
 
