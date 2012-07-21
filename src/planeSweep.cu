@@ -28,7 +28,7 @@ __global__ void cudaProcess(unsigned char *out_array, int imageWidth, int imageH
 	
 	if(x < imageWidth && y < imageHeight)
 	{
-		float cost = 1000000.0f;
+		float cost = 1000000.0f;		
 		int planeIndex; float dataCost = 0; 
 		for(unsigned int i = 0; i<numOfCandidatePlanes; i++)
 		{		
@@ -37,7 +37,7 @@ __global__ void cudaProcess(unsigned char *out_array, int imageWidth, int imageH
 			{
 				cost = dataCost;
 				planeIndex = i;
-			}
+			}		
 		}
 		uchar4 pixelColor = tex3D(colorTex, x + 0.5, y + 0.5, planeIndex + 0.5);
 		out_array[(y * imageWidth  + x ) * 4 + 0] = pixelColor.x;
@@ -56,6 +56,7 @@ __global__ void findDepthMap(int imageWidth, int imageHeight, unsigned int numOf
 	if(x < imageWidth && y < imageHeight)
 	{
 		float cost = 1000000.0f;
+		float cost2nd = 1000000.0f;
 		int planeIndex; float dataCost = 0; 
 		for(unsigned int i = 0; i<numOfCandidatePlanes; i++)
 		{		
@@ -65,9 +66,21 @@ __global__ void findDepthMap(int imageWidth, int imageHeight, unsigned int numOf
 				cost = dataCost;
 				planeIndex = i;
 			}
+			else if( dataCost < cost2nd)
+			{
+				cost2nd = dataCost;
+			}
 		}
-		float d = -1.0f + step * float( planeIndex + 1);
-		float depth = -2 * far * near/ (d * (far - near) - (far + near));
+		float depth;
+		if( (cost2nd - cost + 0.00001)/(cost2nd + 0.00001) < 0.2)
+		{
+			depth = far;
+		}
+		else
+		{
+			float d = -1.0f + step * float( planeIndex + 1);
+			depth = -2 * far * near/ (d * (far - near) - (far + near));
+		}
 		float normalizedDepth = 255.0f * (depth - near)/ (far - near);
 		uchar4 depthValue = make_uchar4(normalizedDepth, normalizedDepth,normalizedDepth, 255);
 

@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>850</width>
-    <height>583</height>
+    <width>932</width>
+    <height>625</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -151,7 +151,7 @@
    <property name="geometry">
     <rect>
      <x>50</x>
-     <y>430</y>
+     <y>440</y>
      <width>71</width>
      <height>31</height>
     </rect>
@@ -164,7 +164,7 @@
    <property name="geometry">
     <rect>
      <x>50</x>
-     <y>470</y>
+     <y>480</y>
      <width>271</width>
      <height>31</height>
     </rect>
@@ -172,6 +172,137 @@
    <property name="text">
     <string>Capture</string>
    </property>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_2">
+   <property name="geometry">
+    <rect>
+     <x>450</x>
+     <y>470</y>
+     <width>168</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout_2">
+    <item>
+     <widget class="QLabel" name="label_2">
+      <property name="text">
+       <string>Near Plane</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QDoubleSpinBox" name="doubleSpinBox_nearPlane">
+      <property name="maximum">
+       <double>999.990000000000009</double>
+      </property>
+      <property name="singleStep">
+       <double>1.000000000000000</double>
+      </property>
+      <property name="value">
+       <double>1.000000000000000</double>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_3">
+   <property name="geometry">
+    <rect>
+     <x>450</x>
+     <y>500</y>
+     <width>168</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout_3">
+    <item>
+     <widget class="QLabel" name="label_3">
+      <property name="text">
+       <string>Far Plane</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QDoubleSpinBox" name="doubleSpinBox_farPlane">
+      <property name="maximum">
+       <double>999.990000000000009</double>
+      </property>
+      <property name="singleStep">
+       <double>0.500000000000000</double>
+      </property>
+      <property name="value">
+       <double>2.000000000000000</double>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="layoutWidget_4">
+   <property name="geometry">
+    <rect>
+     <x>450</x>
+     <y>530</y>
+     <width>168</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout_4">
+    <item>
+     <widget class="QLabel" name="label_4">
+      <property name="text">
+       <string>Plane Number</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QDoubleSpinBox" name="doubleSpinBox_planeNum">
+      <property name="decimals">
+       <number>0</number>
+      </property>
+      <property name="maximum">
+       <double>1000.000000000000000</double>
+      </property>
+      <property name="singleStep">
+       <double>10.000000000000000</double>
+      </property>
+      <property name="value">
+       <double>12.000000000000000</double>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWidget" name="">
+   <property name="geometry">
+    <rect>
+     <x>450</x>
+     <y>436</y>
+     <width>168</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <item>
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>Sigma</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QDoubleSpinBox" name="doubleSpinBox_sigma">
+      <property name="maximum">
+       <double>11.990000000000000</double>
+      </property>
+      <property name="singleStep">
+       <double>0.500000000000000</double>
+      </property>
+      <property name="value">
+       <double>1.000000000000000</double>
+      </property>
+     </widget>
+    </item>
+   </layout>
   </widget>
  </widget>
  <resources/>

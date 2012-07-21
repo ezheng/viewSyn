@@ -41,6 +41,12 @@ void GLWidget::resizeGL(int w, int h) {
 	glViewport(0, 0, w, h);	
 }
 
+
+int GLWidget::heightForWidth ( int w ) const
+{
+	return 1;
+}
+
 void GLWidget::paintGL() {
 	display();
 }
@@ -64,10 +70,10 @@ void GLWidget::display()
 	glPushMatrix();
     glLoadIdentity();
     glBegin(GL_QUADS);
-    glTexCoord2f(0.0, 1.0); glVertex3f(0, 0, 0.5);
-    glTexCoord2f(1.0, 1.0); glVertex3f(1.0, 0, 0.5);
-    glTexCoord2f(1.0, 0.0); glVertex3f(1.0, 1.0, 0.5);
-    glTexCoord2f(0.0, 0.0); glVertex3f(0, 1.0, 0.5);
+    glTexCoord2f(0.0, 0.0); glVertex3f(0, 0, 0.5);
+    glTexCoord2f(1.0, 0.0); glVertex3f(1.0, 0, 0.5);
+    glTexCoord2f(1.0, 1.0); glVertex3f(1.0, 1.0, 0.5);
+    glTexCoord2f(0.0, 1.0); glVertex3f(0, 1.0, 0.5);
     glEnd();
 
 	glDisable(GL_TEXTURE_2D);
@@ -137,7 +143,7 @@ void GLWidget::setPosValue(int posX, int posY, image refImg)
 	cv::Mat line = fundMatrix * pointsPos;
 	drawLine(line);
 	makeCurrent();
-	display();	
+	display();
 	swapBuffers();
 }
 

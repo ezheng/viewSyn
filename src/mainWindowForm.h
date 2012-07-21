@@ -43,6 +43,9 @@ public:
 	//QMutex* _imageMutex;
 
 private:
+	glm::vec3 _xyzMin;
+	glm::vec3 _xyzMax;
+
 	bool _wasCapturing;
 	void showImageWindow();
 	QTimer _timer;

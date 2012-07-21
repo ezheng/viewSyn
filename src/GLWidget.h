@@ -13,6 +13,7 @@ public:
 	GLWidget(image *im, int id, const QGLWidget * shareWidget);
 	image *_im;
 	texture2D _tex;
+	virtual int heightForWidth ( int w ) const;
 	
 signals:
 	void posChanged(int posX, int posY, image refImg);

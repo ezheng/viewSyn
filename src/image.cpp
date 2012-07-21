@@ -17,6 +17,8 @@ image::image(std::string fileName, double * K, double *R, double *T)
 
 	_proj = _K * _proj;		
 	_image = cv::imread(fileName);
+	cv::flip(_image, _image, 0);
+
 	_imageName = fileName;
 
 	// class member for opengl

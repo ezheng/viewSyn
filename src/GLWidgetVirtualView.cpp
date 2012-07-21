@@ -35,11 +35,11 @@ int GLWidgetVirtualView:: printOglError(char *file, int line)
 
 GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidget *sharedWidget,
 	const QList<GLWidget*>& imageQGLWidgets): 
-	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[0]),
+	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[3]),
 		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _psVertexBufferHandle(0),
 		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
 		_depthmapView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), _display_Color_Depth(true)
-{
+{ 
 	int width, height;
 	if( (*allIms)->size() <1){	
 		width = 200, height = 100;
@@ -51,11 +51,14 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 120;
-	_psParam._numOfCameras  = 6;	
-	_psParam._gaussianSigma = 1.0f;
-	_psParam._near = 0.5f;
-	_psParam._far = 0.6f;
+	_psParam._numOfPlanes = 100;
+	_psParam._numOfCameras  = 5;	
+	_psParam._gaussianSigma = 2.0f;
+	_psParam._near = 5.f;
+	_psParam._far = 9.f;
+	//_psParam._near = .45f;
+	//_psParam._far = .6f;
+
 
 	_virtualImg.setProjMatrix(_psParam._near, _psParam._far);
 
@@ -65,6 +68,18 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	_warpingFragFileName = filePath + "\\warping.frag";
 	writeGeometryShaderFile(_warpingGeoFileName);
 	writeFragmentShaderFile(_warpingFragFileName);
+}
+
+void GLWidgetVirtualView::setPlaneParam_slot(planeSweepParameters param)
+{
+	//this->_psParam = param;
+	_psParam._numOfPlanes = param._numOfPlanes;
+	_psParam._gaussianSigma = param._gaussianSigma;
+	_psParam._near = _psParam._near;
+	_psParam._far = _psParam._far;
+
+	_virtualImg.setProjMatrix(_psParam._near, _psParam._far);
+	updateGL();
 }
 
 void GLWidgetVirtualView::initTexture3D(GLuint & RTT3D, int imageWidth, int imageHeight, int numOfLayers, bool isColorTexture)
@@ -212,10 +227,10 @@ void GLWidgetVirtualView:: displayImage(GLuint texture, int imageWidth, int imag
     glViewport(0, 0, imageWidth, imageHeight);
 	printOpenGLError();	
     glBegin(GL_QUADS);
-    glTexCoord2f(0.0, 0.0); 	glVertex3f(-1.0, 1.0, 0.5);
-    glTexCoord2f(1.0, 0.0); 	glVertex3f(1.0, 1.0, 0.5);
-    glTexCoord2f(1.0, 1.0); 	glVertex3f(1.0, -1.0, 0.5);
-    glTexCoord2f(0.0, 1.0); 	glVertex3f(-1.0, -1.0, 0.5);
+    glTexCoord2f(0.0, 1.0); 	glVertex3f(-1.0, 1.0, 0.5);
+    glTexCoord2f(1.0, 1.0); 	glVertex3f(1.0, 1.0, 0.5);
+    glTexCoord2f(1.0, 0.0); 	glVertex3f(1.0, -1.0, 0.5);
+    glTexCoord2f(0.0, 0.0); 	glVertex3f(-1.0, -1.0, 0.5);
     glEnd();
 	printOpenGLError();
 
@@ -398,14 +413,12 @@ void GLWidgetVirtualView::paintGL()
 	printOpenGLError();
 	glDrawArraysInstanced(GL_POINTS, 0, 1, _psParam._numOfPlanes); 
 
-	
-
-	// unbind fbo, vao
+		// unbind fbo, vao
 	glBindVertexArray(0);
 	_fbo->Disable();
 	//*****
-	
-	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
+	/*for(int i = 50; i<100; i++)
+		imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, i);*/
 
 	//displayLayedTexture(_cost3DTexID);
 	//displayLayedTexture(_color3DTexID);
@@ -432,11 +445,7 @@ void GLWidgetVirtualView::paintGL()
 	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
 	doCudaProcessing(_cost3D_CUDAArray, _color3D_CUDAArray, _syncView_CUDAArray, _depthmapView_CUDAArray);
 
-	// compare results 
 	
-
-
-
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_cost3D_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_color3D_CUDAResource, 0));
 	if(_display_Color_Depth) CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
@@ -447,7 +456,6 @@ void GLWidgetVirtualView::paintGL()
 		displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
 	else
 		displayImage(_depthmapView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
-	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
 
 	// that's it!!!	
 }

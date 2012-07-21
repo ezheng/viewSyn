@@ -14,8 +14,9 @@
 #include <cuda_gl_interop.h>
 #include "texture2D.h"
 
-struct planeSweepParameters
+class planeSweepParameters
 {
+public:
 	int _virtualWidth;
 	int _virtualHeight;
 	unsigned int _numOfPlanes;
@@ -23,6 +24,7 @@ struct planeSweepParameters
 	float _near;
 	float _far;
 	float _gaussianSigma;
+		
 };
 
 
@@ -56,6 +58,7 @@ signals:
 
 public slots:
 	void computeImageError();
+	void setPlaneParam_slot(planeSweepParameters param);
 
 private:
 	VSShaderLib _shaderHandle;

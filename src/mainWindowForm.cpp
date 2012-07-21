@@ -12,7 +12,7 @@
 #include <qthread.h>
 
 mainWindowForm::mainWindowForm(void): _busHandler(NULL), _imagesForm(NULL), _allImagesForm(NULL), _wasCapturing(false),
-	_virtualViewForm(NULL), _widgetForContext(NULL)
+	_virtualViewForm(NULL), _widgetForContext(NULL), _xyzMin(0,0,0), _xyzMax(0,0,0)
 {
 	ui.setupUi(this);	
 
@@ -47,7 +47,8 @@ void mainWindowForm::startViewSynthesis_slot()
 
 	// this is the center of rotation. Maybe removed in the future version *****
 	//_virtualViewForm->setObjCenterPos(_allImagesForm->_objCenterPos);
-	_virtualViewForm->setObjCenterPos(glm::vec3(0,0,0));
+	//_virtualViewForm->setObjCenterPos(glm::vec3(0,0,0));
+	_virtualViewForm->setObjCenterPos((_xyzMax + _xyzMin)/2.0f);
 	//--------------------------------------------------------------------
 	QMdiSubWindow *subWindow2 = new QMdiSubWindow();	
 	QObject::connect( _virtualViewForm, SIGNAL(updateVirtualView_signal(virtualImage)), _allImagesForm, SLOT(updateVirtualView_slot(virtualImage)));
@@ -143,7 +144,9 @@ void mainWindowForm::retrieveImages()
 void mainWindowForm::openFile_slot()
 {	
 	QString qFileName = QFileDialog::getOpenFileName(this,
-     tr("Open Image"), "C:\\Enliang\\data\\middleBury\\temple", tr("Image List Files (*.txt)"));
+     //tr("Open Image"), "C:\\Enliang\\data\\middleBury\\temple", tr("Image List Files (*.txt)"));
+	  tr("Open Image"), "C:\\Enliang\\data\\fountain_dense\\fromLiang\\images\\quarter_size", tr("Image List Files (*.txt)"));
+	
 	std::string fileName = qFileName.toLocal8Bit().constData();
 	std::cout << fileName << std::endl;
 	if(fileName.empty())
@@ -182,7 +185,7 @@ void mainWindowForm::showImageWindow()
     ui.mdiArea->addSubWindow(subWindow);
 	subWindow->show();
 
-	_allImagesForm = new GLWidgetAllImgs(&_allImages, _widgetForContext, _imagesForm->_glWidgets);	
+	_allImagesForm = new GLWidgetAllImgs(&_allImages, _widgetForContext, _imagesForm->_glWidgets, _xyzMin, _xyzMax);	
 	QMdiSubWindow *subWindow1 = new QMdiSubWindow();	 
     subWindow1->setWidget(_allImagesForm);
 	subWindow1->setGeometry(100,100, 400,400);
@@ -225,5 +228,27 @@ void mainWindowForm::readImages(std::string fileName)
 		_allImages->push_back(im);
 	 }
 	 in.close();
+
+	 // read the bounding box for the images
+	 //std::string filePath = 
+	 size_t pos= fileName.find_last_of('/');
+	 if( pos != std::string::npos)
+	 {
+		std::string boundingFileName = fileName.substr(0, pos+1);
+		boundingFileName += "bound.txt";	
+		
+		in.open(boundingFileName);
+
+		 if(!in.is_open())
+		 {
+			std::cout<< "object bounding data is not available" << std::endl; return;
+		 }
+		// float x; 
+		// in >> x;
+		 in >> _xyzMin[0] >> _xyzMin[1] >> _xyzMin[2] >> _xyzMax[0] >> _xyzMax[1] >> _xyzMax[2];
+		in.close();
+
+	 }
+
 }
 

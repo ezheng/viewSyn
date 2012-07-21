@@ -1,18 +1,17 @@
 #version 420
-in vec4 ProjTexCoord[6];
+in vec4 ProjTexCoord[5];
 uniform sampler2D tex0;
 uniform sampler2D tex1;
 uniform sampler2D tex2;
 uniform sampler2D tex3;
 uniform sampler2D tex4;
-uniform sampler2D tex5;
 layout(location = 0) out float meanCost;
  layout(location = 1) out vec4 meanColor;
 void main()
 {
-vec4 projTexColor[6];
-bool t[6];
-for(int i = 0; i<6; i++)
+vec4 projTexColor[5];
+bool t[5];
+for(int i = 0; i<5; i++)
 {t[i] = false;}
 vec4 baseColor = vec4(0,0,0,0);
 float numOfViews = 0;
@@ -50,13 +49,6 @@ if(ProjTexCoord[4].x/ProjTexCoord[4].w > 0 && ProjTexCoord[4].x/ProjTexCoord[4].
 baseColor = baseColor + projTexColor[4];
 numOfViews = numOfViews + 1.0;
 t[4] = true;
-}
-if(ProjTexCoord[5].x/ProjTexCoord[5].w > 0 && ProjTexCoord[5].x/ProjTexCoord[5].w <1.0 && ProjTexCoord[5].y/ProjTexCoord[5].w > 0 && ProjTexCoord[5].y/ProjTexCoord[5].w < 1.0 && ProjTexCoord[5].z > 0.0f)
-{
- projTexColor[5] = textureProj(tex5, ProjTexCoord[5]);
-baseColor = baseColor + projTexColor[5];
-numOfViews = numOfViews + 1.0;
-t[5] = true;
 }
 meanColor = vec4(0,0,0,1.0f);
 if(numOfViews <=1){

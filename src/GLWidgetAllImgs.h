@@ -13,7 +13,7 @@ class GLWidgetAllImgs : public QGLWidget {
 	Q_OBJECT
 public:
 	//GLWidgetAllImgs(std::vector<image> *allIms, int id, QWidget *parent = NULL);
-	GLWidgetAllImgs(std::vector<image> **allIms, QGLWidget *sharedWidget, const QList<GLWidget*>& imageQGLWidgets);
+	GLWidgetAllImgs(std::vector<image> **allIms, QGLWidget *sharedWidget, const QList<GLWidget*>& imageQGLWidgets, glm::vec3 xyzMin, glm::vec3 xyzMax);
 	~GLWidgetAllImgs() {
 		if( _virtualImg != NULL)
 		{delete _virtualImg;}
@@ -69,6 +69,9 @@ private:
 	int _mouseY;
 	bool _keyControlPressed;
 	QList<GLWidget*> _imageQGLWidgets;
+
+	glm::vec3 _xyzMin;
+	glm::vec3 _xyzMax;
 
 public slots:
 	void updateVirtualView_slot(virtualImage virImg);

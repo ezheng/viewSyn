@@ -18,8 +18,8 @@ int GLWidgetAllImgs:: printOglError(char *file, int line)
     return retCode;
 }
 
-GLWidgetAllImgs::GLWidgetAllImgs(std::vector<image> **allIms, QGLWidget *sharedWidget, const QList<GLWidget*> &imageQGLWidgets)
-	: QGLWidget((QWidget*)NULL, sharedWidget), _allIms(allIms), _imageQGLWidgets(imageQGLWidgets), _virtualImg(NULL)
+GLWidgetAllImgs::GLWidgetAllImgs(std::vector<image> **allIms, QGLWidget *sharedWidget, const QList<GLWidget*> &imageQGLWidgets, glm::vec3 xyzMin, glm::vec3 xyzMax )
+	: QGLWidget((QWidget*)NULL, sharedWidget), _allIms(allIms), _imageQGLWidgets(imageQGLWidgets), _virtualImg(NULL), _xyzMin(xyzMin), _xyzMax(xyzMax)
 {
 	upDateParam();	
 }
@@ -174,8 +174,12 @@ void GLWidgetAllImgs::display()
 
 void GLWidgetAllImgs :: drawObjectScope()
 {
-	float xmin = -0.054568f; 	float ymin =  0.001728f; 	float zmin = -0.042945f;
-	float xmax = 0.047855f;		float ymax = 0.161892f;		float zmax = 0.032236f;
+	float xmin = _xyzMin.x; 	float ymin =  _xyzMin.y; 	float zmin = _xyzMin.z;
+	float xmax = _xyzMax.y;		float ymax = _xyzMax.y;		float zmax = _xyzMax.z;
+
+
+	//float xmin = -0.054568f; 	float ymin =  0.001728f; 	float zmin = -0.042945f;
+	//float xmax = 0.047855f;		float ymax = 0.161892f;		float zmax = 0.032236f;
 
 	glBegin(GL_LINE_STRIP);
 		glVertex3f( xmin, ymin, zmin);
@@ -285,8 +289,6 @@ void GLWidgetAllImgs::drawOneCam(const virtualImage &img)
 
 	glColor4f(currentColor[0], currentColor[1], currentColor[2], currentColor[3]);
 
-	
-
 
 }
 
@@ -315,13 +317,13 @@ void GLWidgetAllImgs::drawOneCam(const image &img, GLWidget* _oneImageQGLWidgets
 	glBindTexture(GL_TEXTURE_2D, _oneImageQGLWidgets->_tex._textureID);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 	glBegin(GL_QUADS);	
-		glTexCoord2f(0.0f,0.0f);
-		glVertex3f(p1.x, p1.y,p1.z); 
-		glTexCoord2f(1.0f,0.0f);
-		glVertex3f(p2.x, p2.y,p2.z);
-		glTexCoord2f(1.0f,1.0f);
-		glVertex3f(p3.x, p3.y,p3.z);
 		glTexCoord2f(0.0f,1.0f);
+		glVertex3f(p1.x, p1.y,p1.z); 
+		glTexCoord2f(1.0f,1.0f);
+		glVertex3f(p2.x, p2.y,p2.z);
+		glTexCoord2f(1.0f,0.0f);
+		glVertex3f(p3.x, p3.y,p3.z);
+		glTexCoord2f(0.0f,0.0f);
 		glVertex3f(p4.x, p4.y,p4.z);		
 	glEnd();
 	glDisable(GL_TEXTURE_2D);
@@ -336,6 +338,15 @@ void GLWidgetAllImgs::drawOneCam(const image &img, GLWidget* _oneImageQGLWidgets
 		glVertex3f(optCenterPos.x, optCenterPos.y,optCenterPos.z);
 		glVertex3f(p4.x, p4.y, p4.z);
 	glEnd();
+
+	//draw upDir:
+	glColor4f(1.0f, 1.0f, 1.0f, 0.0f);
+	glm::vec3 p5 = p4 + camUpDir * cameraSizeScale;
+	glBegin(GL_LINES);
+		glVertex3f(p4.x, p4.y, p4.z);
+		glVertex3f(p5.x, p5.y, p5.z);
+	glEnd();
+	glColor4f(0.0f, 0.0f, 1.0f, 0.0f);
 }
 
 
