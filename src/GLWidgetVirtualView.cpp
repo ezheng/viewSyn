@@ -53,9 +53,9 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
 	_psParam._numOfPlanes = 100;
 	_psParam._numOfCameras  = 5;	
-	_psParam._gaussianSigma = 2.0f;
-	_psParam._near = 5.f;
-	_psParam._far = 9.f;
+//	_psParam._gaussianSigma = 2.0f;
+//	_psParam._near = 3.5f;
+//	_psParam._far = 9.f;
 	//_psParam._near = .45f;
 	//_psParam._far = .6f;
 
@@ -70,17 +70,47 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	writeFragmentShaderFile(_warpingFragFileName);
 }
 
-void GLWidgetVirtualView::setPlaneParam_slot(planeSweepParameters param)
-{
-	//this->_psParam = param;
-	_psParam._numOfPlanes = param._numOfPlanes;
-	_psParam._gaussianSigma = param._gaussianSigma;
-	_psParam._near = _psParam._near;
-	_psParam._far = _psParam._far;
 
+
+void GLWidgetVirtualView::psFarPlaneChanged(double farPlanePos)
+{
+	std::cout<< "psFarPlaneChanged"<< std::endl;
+	_psParam._far = static_cast<float>(farPlanePos);
 	_virtualImg.setProjMatrix(_psParam._near, _psParam._far);
 	updateGL();
+	_virtualImg.calcPlaneCoords();
+	emit updateVirtualView_signal(_virtualImg);
 }
+
+void GLWidgetVirtualView::psNearPlaneChanged(double nearPlanePos)
+{
+	std::cout<< "psNearPlaneChanged"<< std::endl;
+	_psParam._near = static_cast<float>(nearPlanePos);
+	_virtualImg.setProjMatrix(_psParam._near, _psParam._far);
+	updateGL();
+	_virtualImg.calcPlaneCoords();
+	emit updateVirtualView_signal(_virtualImg);
+}
+void GLWidgetVirtualView::psGSSigmaChanged(double sigma)
+{
+	std::cout<< "psGSSigmaChanged"<< std::endl;
+	_psParam._gaussianSigma = static_cast<float>(sigma);
+	updateGL();
+
+}
+void GLWidgetVirtualView::psNumPlaneChanged(double numOfPlanes)
+{
+	std::cout<< "psNumPlaneChanged"<< std::endl;
+	_psParam._numOfPlanes = static_cast<int>(100);
+	// re-initialize the textures
+
+
+
+	updateGL();
+	
+}
+
+
 
 void GLWidgetVirtualView::initTexture3D(GLuint & RTT3D, int imageWidth, int imageHeight, int numOfLayers, bool isColorTexture)
 {
