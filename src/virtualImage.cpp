@@ -71,6 +71,16 @@ void virtualImage::calcPlaneCoords()
 	farPlane.leftTop = dividew(inverseMVP * glm::vec4(-1.0f, 1.0f, 1.0f, 1.0f));
 	farPlane.rightTop = dividew(inverseMVP * glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
+
+	/*int num = 100; float step = 2.0f / num;
+	std::cout << "_near: " << _near << "_far: " << _far << std::endl;
+	for(int i = 0; i<num; i++)
+	{
+		float d = -1 + step * (i + 1);
+		glm::vec3 dd = dividew(inverseProjectionMatrix * glm::vec4(0,0,d,1.0f));
+		std::cout << "d: " << d << "dd.z: " << dd.z << std::endl;
+	}*/
+
 }
 
 glm::vec3 virtualImage::dividew(glm::vec4 input)

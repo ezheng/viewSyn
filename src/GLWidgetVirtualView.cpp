@@ -66,11 +66,9 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	std::string filePath = std::string(std::getenv("SHADER_FILE_PATH"));
 	_warpingGeoFileName = filePath + "\\warping.geom";
 	_warpingFragFileName = filePath + "\\warping.frag";
-	writeGeometryShaderFile(_warpingGeoFileName);
-	writeFragmentShaderFile(_warpingFragFileName);
+	//writeGeometryShaderFile(_warpingGeoFileName);
+	//writeFragmentShaderFile(_warpingFragFileName);
 }
-
-
 
 void GLWidgetVirtualView::psFarPlaneChanged(double farPlanePos)
 {
@@ -103,8 +101,6 @@ void GLWidgetVirtualView::psNumPlaneChanged(double numOfPlanes)
 	std::cout<< "psNumPlaneChanged"<< std::endl;
 	_psParam._numOfPlanes = static_cast<int>(100);
 	// re-initialize the textures
-
-
 
 	updateGL();
 	
@@ -157,7 +153,10 @@ void GLWidgetVirtualView::initializeGL()
 	CUDA_SAFE_CALL(cudaGLSetGLDevice(0));
 	// create an empty 2d texture for view synthesis
 	_syncView.create(NULL);	// just allocate memory, no image data is uploaded
-	_depthmapView.create(NULL);
+	//_depthmapView.create(NULL);
+	_depthmap1.create(NULL);
+	_depthmap2.create(NULL);
+
 	//--------------------------------------------------------
 	// set up shader
 	std::string filePath = std::string(std::getenv("SHADER_FILE_PATH"));
@@ -183,9 +182,9 @@ void GLWidgetVirtualView::initializeGL()
 	_fbo = new FramebufferObject();
 	_fbo->Bind();
 	_fbo->AttachTexture(GL_TEXTURE_3D, _cost3DTexID, GL_COLOR_ATTACHMENT0, 0, -1); // -1 means no specific layer is specified, 0 is the mipmap level
-	_fbo->AttachTexture(GL_TEXTURE_3D, _color3DTexID, GL_COLOR_ATTACHMENT1, 0, -1); // -1 means no specific layer is specified, 0 is the mipmap level
-	GLenum drawBufs[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
-	glDrawBuffers(2, drawBufs);
+	//_fbo->AttachTexture(GL_TEXTURE_3D, _color3DTexID, GL_COLOR_ATTACHMENT1, 0, -1); // -1 means no specific layer is specified, 0 is the mipmap level
+	//GLenum drawBufs[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+	//glDrawBuffers(2, drawBufs);
 	_fbo->IsValid(std::cout);
 	_fbo->Disable();
 
@@ -220,16 +219,20 @@ void GLWidgetVirtualView::initializeGL()
 				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 3d texture
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
-	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_color3D_CUDAResource, _color3DTexID, 
-				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsReadOnly ));// register the 3d texture
+	//CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_color3D_CUDAResource, _color3DTexID, 
+	//			  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsReadOnly ));// register the 3d texture
 
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_syncView_CUDAResource, _syncView._textureID, 
 				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone ));// register the 2d texture
 
-	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_depthmap_CUDAResource, _depthmapView._textureID, 
+	//CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_depthmap_CUDAResource, _depthmapView._textureID, 
+	//			  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 2d surface texture
+	
+	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_depthmap1_CUDAResource, _depthmap1._textureID, 
 				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 2d surface texture
+	
 
 
 	printOpenGLError();
@@ -462,30 +465,41 @@ void GLWidgetVirtualView::paintGL()
 	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_cost3D_CUDAResource, 0));	// one resource and stream 0
 	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_cost3D_CUDAArray, _cost3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
 
-	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_color3D_CUDAResource, 0));
-	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_color3D_CUDAArray, _color3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	//CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_color3D_CUDAResource, 0));
+	//CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_color3D_CUDAArray, _color3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
 
-	if(_display_Color_Depth){
+	//if(_display_Color_Depth){
 	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_syncView_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_syncView_CUDAArray, _syncView_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
-	}else{
-	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_depthmap_CUDAResource, 0));
-	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_depthmapView_CUDAArray, _depthmap_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
-	}
+
+	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_depthmap1_CUDAResource, 0));
+	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_depthmap1_CUDAArray, _depthmap1_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_depthmap2_CUDAArray, _depthmap2_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+
+	//}else{
+	//CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_depthmap_CUDAResource, 0));
+	//CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_depthmapView_CUDAArray, _depthmap_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	//}
 	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
-	doCudaProcessing(_cost3D_CUDAArray, _color3D_CUDAArray, _syncView_CUDAArray, _depthmapView_CUDAArray);
+
+	//doCudaProcessing(_cost3D_CUDAArray, _color3D_CUDAArray, _syncView_CUDAArray, _depthmapView_CUDAArray);
 
 	
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_cost3D_CUDAResource, 0));
-	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_color3D_CUDAResource, 0));
-	if(_display_Color_Depth) CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
-	else CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap_CUDAResource, 0));
+	//CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_color3D_CUDAResource, 0));
+	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap1_CUDAResource, 0));
+	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap2_CUDAResource, 0));
+
+	//if(_display_Color_Depth) 
+		CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
+	//else
+	//	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap_CUDAResource, 0));
 
 	//displayImage( _imageQGLWidgets[0]->_tex._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
-	if(_display_Color_Depth)
+	//if(_display_Color_Depth)
 		displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
-	else
-		displayImage(_depthmapView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
+	//else
+		//displayImage(_depthmapView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
 
 	// that's it!!!	
 }

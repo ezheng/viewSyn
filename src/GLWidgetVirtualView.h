@@ -86,14 +86,19 @@ private:
 	int printOglError(char *file, int line);
 
 	struct cudaGraphicsResource *_cost3D_CUDAResource;
-	struct cudaGraphicsResource *_color3D_CUDAResource;
+	//struct cudaGraphicsResource *_color3D_CUDAResource;
 	struct cudaGraphicsResource *_syncView_CUDAResource;
-	struct cudaGraphicsResource *_depthmap_CUDAResource;
+	//struct cudaGraphicsResource *_depthmap_CUDAResource;
+	struct cudaGraphicsResource *_depthmap1_CUDAResource;
+	struct cudaGraphicsResource *_depthmap2_CUDAResource;
+
 
 	cudaArray *_cost3D_CUDAArray;
-	cudaArray *_color3D_CUDAArray;
+	//cudaArray *_color3D_CUDAArray;
 	cudaArray *_syncView_CUDAArray;
-	cudaArray *_depthmapView_CUDAArray;
+	//cudaArray *_depthmapView_CUDAArray;
+	cudaArray *_depthmap1_CUDAArray;
+	cudaArray *_depthmap2_CUDAArray;
 
 
 	void _CUDA_SAFE_CALL( cudaError_t error, std::string fileName, int lineNum);
@@ -101,8 +106,10 @@ private:
 	unsigned char* _outArray;	// memory in GPU
 
 	texture2D _syncView;
-	texture2D _depthmapView;
-	
+	//texture2D _depthmapView;
+	texture2D _depthmap1;
+	texture2D _depthmap2;
+
 	bool _display_Color_Depth;
 
 	void displayImage(GLuint texture, int imageWidth, int imageHeight);
