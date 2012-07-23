@@ -58,12 +58,7 @@ signals:
 
 public slots:
 	void computeImageError();
-	//void setPlaneParam_slot(planeSweepParameters param);
-	void psFarPlaneChanged(double farPlanePos);
-	void psNearPlaneChanged(double nearPlanePos);
-	void psGSSigmaChanged(double sigma);
-	void psNumPlaneChanged(double numOfPlanes);
-
+	void setPlaneParam_slot(planeSweepParameters param);
 
 private:
 	VSShaderLib _shaderHandle;

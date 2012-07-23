@@ -44,11 +44,7 @@ viewSynForm::viewSynForm(std::vector<image>** ims, QGLWidget* widgetForContext/*
 	ui.button_Capture->setEnabled(false);
 	QObject::connect(ui.button_Saving_Path, SIGNAL(clicked()), this, SLOT(getSavingPath()), Qt::QueuedConnection);
 	QObject::connect(ui.button_Capture, SIGNAL(clicked()), this, SLOT(saveImage()));
-
-//	QObject::connect(ui.doubleSpinBox_farPlane, SIGNAL(valueChanged(double)), this, SLOT(setFarPlane(double))); 
 }
-
-
 
 void viewSynForm::saveImage()
 {	

@@ -65,17 +65,6 @@ void mainWindowForm::startViewSynthesis_slot()
 	//subWindow2->adjustSize();
 
 
-	QObject::connect(_imagesForm->ui.doubleSpinBox_farPlane, SIGNAL(valueChanged(double)), _virtualViewForm, SLOT(psFarPlaneChanged(double)), Qt::UniqueConnection); 
-	QObject::connect(_imagesForm->ui.doubleSpinBox_nearPlane, SIGNAL(valueChanged(double)), _virtualViewForm, SLOT(psNearPlaneChanged(double)), Qt::UniqueConnection); 
-	QObject::connect(_imagesForm->ui.doubleSpinBox_planeNum, SIGNAL(valueChanged(double)), _virtualViewForm, SLOT(psNumPlaneChanged(double)), Qt::UniqueConnection); 
-	QObject::connect(_imagesForm->ui.doubleSpinBox_sigma, SIGNAL(valueChanged(double)), _virtualViewForm, SLOT(psGSSigmaChanged(double)), Qt::UniqueConnection);
-
-	_virtualViewForm->psFarPlaneChanged(_imagesForm->ui.doubleSpinBox_farPlane->value());
-	_virtualViewForm->psNearPlaneChanged(_imagesForm->ui.doubleSpinBox_nearPlane->value());
-	_virtualViewForm->psNumPlaneChanged(_imagesForm->ui.doubleSpinBox_planeNum->value());
-	_virtualViewForm->psGSSigmaChanged(_imagesForm->ui.doubleSpinBox_sigma->value());
-
-
 }
 
 mainWindowForm::~mainWindowForm(void)
@@ -130,8 +119,6 @@ void mainWindowForm::retrieveImages()
 	{
 		_imagesForm = new viewSynForm(&_allImages, _widgetForContext/*, _imageMutex*/);
 		showImageWindow();
-		// connects the widgets for setting up plane-sweeping param
-
 		_wasCapturing = true;
 	}
 	else
@@ -154,7 +141,6 @@ void mainWindowForm::retrieveImages()
 	//emit retrieveOneShot();
 }
 
-
 void mainWindowForm::openFile_slot()
 {	
 	QString qFileName = QFileDialog::getOpenFileName(this,
@@ -174,9 +160,6 @@ void mainWindowForm::openFile_slot()
 	{	
 		_imagesForm = new viewSynForm(&_allImages, _widgetForContext/*, _imageMutex*/);	
 		showImageWindow();
-		// connects the widgets for setting up plane-sweeping param
-
-
 	}
 	else
 	{
