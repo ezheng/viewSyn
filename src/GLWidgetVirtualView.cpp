@@ -8,13 +8,16 @@
 #include <cstdlib>
 #include <string>
 #include "utility.h"
+#include "glm/gtc/matrix_transform.hpp"
 #include <imdebuggl.h>
 #include <fstream>
 #include "GaussianBlurCUDA.h"
 
 extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
-extern void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmapView_CUDAArray,
+extern void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmap_CUDAArray, cudaArray *depthmapView_CUDAArray,
 	int width, int height, unsigned int numOfCandidatePlanes, float near, float far, float step);
+
+
 #define printOpenGLError() printOglError(__FILE__, __LINE__)
 #define CUDA_SAFE_CALL(err) _CUDA_SAFE_CALL(err, __FILE__, __LINE__)
 
@@ -35,10 +38,13 @@ int GLWidgetVirtualView:: printOglError(char *file, int line)
 
 GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidget *sharedWidget,
 	const QList<GLWidget*>& imageQGLWidgets): 
-	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[3]),
-		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _psVertexBufferHandle(0),
+	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[4]),
+		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _psVertexBufferHandle(0), 
 		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
-		_depthmapView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), _display_Color_Depth(true)
+		_renderVertexArrayObjectHandle(0), _renderVertexBufferHandle(0),
+		_display_Color_Depth(true),
+		_depthmap1((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
+		_depthmap2((**allIms)[0]._image.cols, (**allIms)[0]._image.rows)
 { 
 	int width, height;
 	if( (*allIms)->size() <1){	
@@ -53,12 +59,11 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
 	_psParam._numOfPlanes = 100;
 	_psParam._numOfCameras  = 5;	
-//	_psParam._gaussianSigma = 2.0f;
-//	_psParam._near = 3.5f;
-//	_psParam._far = 9.f;
+	_psParam._gaussianSigma = 1.4f;
+	_psParam._near = 4.0f;
+	_psParam._far = 10.f;
 	//_psParam._near = .45f;
 	//_psParam._far = .6f;
-
 
 	_virtualImg.setProjMatrix(_psParam._near, _psParam._far);
 
@@ -98,15 +103,11 @@ void GLWidgetVirtualView::psGSSigmaChanged(double sigma)
 }
 void GLWidgetVirtualView::psNumPlaneChanged(double numOfPlanes)
 {
-	std::cout<< "psNumPlaneChanged"<< std::endl;
-	_psParam._numOfPlanes = static_cast<int>(100);
-	// re-initialize the textures
-
-	updateGL();
-	
+	//std::cout<< "psNumPlaneChanged"<< std::endl;
+	//_psParam._numOfPlanes = static_cast<int>(50);
+	//// re-initialize the textures
+	//updateGL();
 }
-
-
 
 void GLWidgetVirtualView::initTexture3D(GLuint & RTT3D, int imageWidth, int imageHeight, int numOfLayers, bool isColorTexture)
 {
@@ -120,9 +121,13 @@ void GLWidgetVirtualView::initTexture3D(GLuint & RTT3D, int imageWidth, int imag
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	    
 	if(isColorTexture)
+	{
 		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, imageWidth, imageHeight, numOfLayers, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	}
 	else
+	{	
 		glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F , imageWidth, imageHeight, numOfLayers, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	}
 
 	printOpenGLError();
 }
@@ -147,6 +152,57 @@ void GLWidgetVirtualView::initializeVBO_VAO(float *vertices, int numOfPrimitive,
 	printOpenGLError();
 }
 
+void GLWidgetVirtualView::initializeRenderVBO_VAO(GLuint &vboObject, GLuint &vaoObject)
+{
+	if(vboObject > 0 || vaoObject >0)	{
+		std::cout<< "WARNING: VAO or VBO is not empty. None of them are recreated" << std::endl;
+		return;
+	}
+	int imageWidth = _psParam._virtualWidth;
+	int imageHeight = _psParam._virtualHeight;
+
+	int numOfPrimitive = (imageWidth - 1) * (imageHeight - 1) * 2;
+	_numOfVertices = numOfPrimitive * 3; // each triangle has 3 vertices
+	int numOfDigits = _numOfVertices * 2; // each vertices has two coordinates: x and y
+
+	float *vertices = new float[numOfDigits];
+
+//	float offsetX = 1.0f/imageWidth/2.0f;
+//	float offsetY = 1.0f/imageHeight/2.0f;
+	for(int i = 0; i<imageHeight - 1; i++)
+	{
+		for(int j = 0; j<imageWidth - 1; j++)
+		{
+			// 1st triangle
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 ] = (j+0.5)/imageWidth;
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 1] = (i+0.5)/imageHeight;
+
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 2] = (j + 1.5)/imageWidth;
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 3] = (i + 1.5)/imageHeight;
+
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 4] = (j + 1.5)/imageWidth;
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 5] = (i + 0.5)/imageHeight;
+			// 2nd triangle
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 6] = (j + 0.5)/imageWidth;
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 7] = (i + 0.5)/imageHeight;
+
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 8] = (j + 1.5)/imageWidth;
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 9] = (i + 1.5)/imageHeight;
+
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 10] = (j + 0.5)/imageWidth;
+			vertices[(i * (imageWidth - 1) +j) * 3 * 2 * 2 + 11] = (i + 1.5)/imageHeight;	
+		}
+	}
+	glGenBuffers(1, & vboObject);
+	glBindBuffer(GL_ARRAY_BUFFER, vboObject);
+	glBufferData(GL_ARRAY_BUFFER, numOfDigits, vertices, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(VSShaderLib::VERTEX_COORD_ATTRIB); // Vertex position
+	glVertexAttribPointer( VSShaderLib::VERTEX_COORD_ATTRIB, 2,		// Specifies the number of components per generic vertex attribute. Must be 1, 2, 3, or 4. The initial value is 4.
+		GL_FLOAT, GL_FALSE, 0,(GLubyte *)NULL );	// 0 is the stride
+	printOpenGLError();
+}
+
 void GLWidgetVirtualView::initializeGL()
 {
 	glewInit();	// Initialize glew
@@ -154,9 +210,11 @@ void GLWidgetVirtualView::initializeGL()
 	// create an empty 2d texture for view synthesis
 	_syncView.create(NULL);	// just allocate memory, no image data is uploaded
 	//_depthmapView.create(NULL);
-	_depthmap1.create(NULL);
-	_depthmap2.create(NULL);
-
+	printOpenGLError();
+	_depthmap1.createGL_R32UI();
+	printOpenGLError();
+	_depthmap2.createGL_R32UI();
+	printOpenGLError();
 	//--------------------------------------------------------
 	// set up shader
 	std::string filePath = std::string(std::getenv("SHADER_FILE_PATH"));
@@ -171,13 +229,26 @@ void GLWidgetVirtualView::initializeGL()
 	_shaderHandle.prepareProgram();
 	// set up 3d texture that I can render to (number of layers should be set )	
 	initTexture3D( _cost3DTexID, _psParam._virtualWidth, _psParam._virtualHeight, _psParam._numOfPlanes, false);
-	initTexture3D( _color3DTexID, _psParam._virtualWidth, _psParam._virtualHeight, _psParam._numOfPlanes, true);
+//	initTexture3D( _color3DTexID, _psParam._virtualWidth, _psParam._virtualHeight, _psParam._numOfPlanes, true);
+	printOpenGLError();
+
+	_shaderHandleRenderScene.init();
+	_shaderHandleRenderScene.loadShader(VSShaderLib::VERTEX_SHADER, (filePath + "\\renderScene.vert").c_str());
+	std::cout<<"renderScene vertex shader: " << _shaderHandleRenderScene.getShaderInfoLog(VSShaderLib::VERTEX_SHADER)<<std::endl;
+	_shaderHandleRenderScene.loadShader(VSShaderLib::GEOMETRY_SHADER, (filePath + "\\renderScene.geom").c_str());
+	std::cout<<"renderScene geometry shader: " << _shaderHandleRenderScene.getShaderInfoLog(VSShaderLib::GEOMETRY_SHADER)<<std::endl;
+	_shaderHandleRenderScene.loadShader(VSShaderLib::FRAGMENT_SHADER, (filePath + "\\renderScene.frag").c_str());
+	std::cout<<"renderScene fragment shader: " << _shaderHandleRenderScene.getShaderInfoLog(VSShaderLib::FRAGMENT_SHADER)<< std::endl;
+	_shaderHandleRenderScene.prepareProgram();
 	printOpenGLError();
 
 	//--------------------------------------------------------
 	// set up vbo
 	float vertices[3] = {0.0f, 0.0f, 0.0f};
 	initializeVBO_VAO(vertices, 1, _psVertexBufferHandle, _psVertexArrayObjectHandle);	// here 1 is the number of primitives
+
+	initializeRenderVBO_VAO(_renderVertexBufferHandle, _renderVertexArrayObjectHandle);
+
 	// set up fbo?
 	_fbo = new FramebufferObject();
 	_fbo->Bind();
@@ -185,14 +256,14 @@ void GLWidgetVirtualView::initializeGL()
 	//_fbo->AttachTexture(GL_TEXTURE_3D, _color3DTexID, GL_COLOR_ATTACHMENT1, 0, -1); // -1 means no specific layer is specified, 0 is the mipmap level
 	//GLenum drawBufs[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
 	//glDrawBuffers(2, drawBufs);
+
 	_fbo->IsValid(std::cout);
 	_fbo->Disable();
 
 	//------------------------
-	glClearColor(1.0, 1.0, 0.0, 1.0);
+	glClearColor(1.0, 0.5, 0.0, 1.0);
 	glDisable(GL_DEPTH_TEST);	// do not need depth buffer
 	glEnable(GL_TEXTURE_2D);
-
 	printOpenGLError();
 
 	// set up shader for displaying layered texture
@@ -220,21 +291,19 @@ void GLWidgetVirtualView::initializeGL()
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	//CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_color3D_CUDAResource, _color3DTexID, 
-	//			  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsReadOnly ));// register the 3d texture
-
+	//			  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsNone ));// register the 3d texture
+		
 	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_syncView_CUDAResource, _syncView._textureID, 
-				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone ));// register the 2d texture
-
-	//CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_depthmap_CUDAResource, _depthmapView._textureID, 
-	//			  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 2d surface texture
+				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 2d texture
 	
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_depthmap1_CUDAResource, _depthmap1._textureID, 
 				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 2d surface texture
-	
+	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_depthmap2_CUDAResource, _depthmap2._textureID, 
+				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 2d surface texture
 
-
+	createDistTable();
 	printOpenGLError();
 }
 
@@ -296,10 +365,10 @@ void GLWidgetVirtualView::doCudaProcessing(cudaArray *cost3D_CUDAArray, cudaArra
 		//cudaTimer timer;
 		//timer.start();
 		
-	if(_display_Color_Depth)
-		launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes);
-	else	
-		launchCudaGetDepthMap(cost3D_CUDAArray, depthmapView_CUDAArray, width, height, numOfCandidatePlanes, _psParam._near, _psParam._far, _step);
+	//if(_display_Color_Depth)
+	//	launchCudaProcess(cost3D_CUDAArray,color3D_CUDAArray, _outArray, width, height, numOfImages, numOfCandidatePlanes);
+	//else	
+		//launchCudaGetDepthMap(cost3D_CUDAArray, depthmapView_CUDAArray, width, height, numOfCandidatePlanes, _psParam._near, _psParam._far, _step);
 		//gaussianF.Filter(color3D_CUDAArray, _psParam._numOfPlanes);
 		
 		//timer.stop();
@@ -400,108 +469,192 @@ void GLWidgetVirtualView::resizeGL(int w, int h)
 		glViewport(0, 0, w, h);	
 }
 
+void GLWidgetVirtualView::findNearestCam(int nearCamIndex[2], glm::vec3 fixedPos, int notIncluded)
+{
+	// calculate based on the distance 
+	
+	float minDist = 1000000000000.0f;
+	float minDist2nd = minDist + 1.0f;
+
+	for(int i = 0; i< _psParam._numOfCameras; i++)
+	{		
+		if(notIncluded == i)
+			continue;
+		float dist = glm::distance(fixedPos, (**_allIms)[i]._glmC);
+		if(dist < minDist)
+		{
+			minDist2nd = minDist;
+			nearCamIndex[1] = nearCamIndex[0]; 
+
+			//----------
+			minDist = dist;
+			nearCamIndex[0] = i;
+		}
+		else if(dist < minDist2nd)
+		{
+			minDist2nd = dist;
+			nearCamIndex[1] = i;
+		}
+	}
+}
+
+void GLWidgetVirtualView::createDistTable()
+{
+	// init
+	for(int i = 0; i<16; i++)
+		_distTable[i] = 0;
+	// 
+	for(int ref = 0; ref < _psParam._numOfCameras; ref++)
+	{
+		findNearestCam( &(_distTable[ref*2]), (**_allIms)[ref]._glmC, ref);
+	}
+
+}
+
 void GLWidgetVirtualView::paintGL()
 {
 	// ***** maybe no depth buffer is needed in first pass
-	//glClear(GL_COLOR_BUFFER_BIT); 	
-	printOpenGLError();
-	//---------------------
+	glClear(GL_COLOR_BUFFER_BIT); 	
+	
+	//find the nearest two cameras.
+	int nearCamIndex[2] = {0};
+	findNearestCam(nearCamIndex, _virtualImg._glmC);
+	
 	// set up the uniforms: images, transformation matrix, etc...
 	glUseProgram(_shaderHandle.getProgramIndex());
 	_step = 2.0f / static_cast<float>(_psParam._numOfPlanes + 1);
 	_shaderHandle.setUniform("step", &_step);
 		// matrix:
 	glm::mat4 projScaleTrans = glm::translate(glm::vec3(0.5f)) * glm::scale(glm::vec3(0.5f));
-	glm::mat4 virtInverseModelViewProj = glm::inverse(_virtualImg._modelViewMatrix) 
-		* glm::inverse(_virtualImg._projMatrix);
-	// *****
-	int numOfImages = _psParam._numOfCameras;
-	glm::mat4 *modelViewProj = new glm::mat4[numOfImages];
-	float *allTransformMatrix = new float[16 * numOfImages];
-	for(int i = 0; i < numOfImages; i++)
-	{
-		modelViewProj[i] = (**_allIms)[i]._projMatrix * (**_allIms)[i]._modelViewMatrix;
-		glm::mat4x4 transformMatrix = projScaleTrans * modelViewProj[i] * virtInverseModelViewProj;
-		std::copy ( &(transformMatrix[0][0]), &(transformMatrix[0][0]) + 16, allTransformMatrix + 16 * i );
-		std::stringstream ss; ss<<i;
-		//std::string uniformVarName = "transformMatrix" + ss.str();
-		//_shaderHandle.setUniform( uniformVarName.c_str(), &transformMatrix[0][0]);
-		printOpenGLError();
-		// images:
-		glActiveTexture(GL_TEXTURE0 + i);
-		glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[i]->_tex._textureID);
-		_shaderHandle.setUniform(("tex" + ss.str()).c_str(), &i);
-		printOpenGLError();
-	}
-	_shaderHandle.setUniform( "transformMatrix[0]", allTransformMatrix);
-	printOpenGLError();
 	
-	// bind to fbo
-	_fbo->Bind();	
-	_fbo->IsValid(std::cout);
-
-	glClear(GL_COLOR_BUFFER_BIT); 
-	// draw() using vao
-	glBindVertexArray(_psVertexArrayObjectHandle);
-	printOpenGLError();
-	glDrawArraysInstanced(GL_POINTS, 0, 1, _psParam._numOfPlanes); 
-
-		// unbind fbo, vao
-	glBindVertexArray(0);
-	_fbo->Disable();
-	//*****
-	/*for(int i = 50; i<100; i++)
-		imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, i);*/
-
-	//displayLayedTexture(_cost3DTexID);
-	//displayLayedTexture(_color3DTexID);
-
-	printOpenGLError();
-
-	// do gaussian filter for each layer
-	// --------------------------------- By doing this I get the layered texture 
-
-	//  map the texture to CUDA, and then find the colors, and then render by writing a cuda kernel
-	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_cost3D_CUDAResource, 0));	// one resource and stream 0
-	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_cost3D_CUDAArray, _cost3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
-
-	//CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_color3D_CUDAResource, 0));
-	//CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_color3D_CUDAArray, _color3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
-
-	//if(_display_Color_Depth){
-	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_syncView_CUDAResource, 0));
-	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_syncView_CUDAArray, _syncView_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	// *****
+	//int numOfImages = _psParam._numOfCameras;
+	//glm::mat4 *modelViewProj = new glm::mat4[numOfImages];
 
 	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_depthmap1_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_depthmap1_CUDAArray, _depthmap1_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_depthmap2_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_depthmap2_CUDAArray, _depthmap2_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_cost3D_CUDAResource, 0));	// one resource and stream 0
+	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_cost3D_CUDAArray, _cost3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_syncView_CUDAResource, 0));
+	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_syncView_CUDAArray, _syncView_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
 
-	//}else{
-	//CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_depthmap_CUDAResource, 0));
-	//CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_depthmapView_CUDAArray, _depthmap_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
-	//}
-	//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA);
+	for(int ref = 0; ref<1; ref++)
+	{
+		int refIndex = nearCamIndex[ref];
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex]->_tex._textureID);
+		int x = 2;
+		_shaderHandle.setUniform("tex2", &x);	// this is the reference camera
 
-	//doCudaProcessing(_cost3D_CUDAArray, _color3D_CUDAArray, _syncView_CUDAArray, _depthmapView_CUDAArray);
 
-	
+		(**_allIms)[refIndex].setProjMatrix(_psParam._near, _psParam._far);
+		//glm::mat4 virtInverseModelViewProj = glm::inverse((**_allIms)[refIndex]._modelViewMatrix) 
+		//	* glm::inverse((**_allIms)[refIndex]._projMatrix);
+		glm::mat4 virtInverseModelViewProj = glm::inverse((**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix) ;
+			
+		float allTransformMatrix[16 * 2];
+		for(int i = 0; i<2; i++)
+		{
+			int nearIndex = _distTable[2*refIndex + i];
+			glm::mat4x4 modelViewProj = (**_allIms)[nearIndex]._projMatrix * (**_allIms)[nearIndex]._modelViewMatrix;
+			glm::mat4x4 transformMatrix = projScaleTrans * modelViewProj * virtInverseModelViewProj;
+			std::copy ( &(transformMatrix[0][0]), &(transformMatrix[0][0]) + 16, allTransformMatrix + 16 * i );
+			std::stringstream ss; ss<<i;
+
+			glActiveTexture(GL_TEXTURE0 + i);
+			glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[nearIndex]->_tex._textureID);
+
+			_shaderHandle.setUniform(("tex" + ss.str()).c_str(), &i);
+			printOpenGLError();
+		}
+		_shaderHandle.setUniform( "transformMatrix[0]", allTransformMatrix);
+
+		_fbo->Bind();	// bind the 3d cost textures. 
+		_fbo->IsValid(std::cout);
+
+		glClear(GL_COLOR_BUFFER_BIT); 
+		// draw() using vao
+		glBindVertexArray(_psVertexArrayObjectHandle);
+		printOpenGLError();
+		glDrawArraysInstanced(GL_POINTS, 0, 1, _psParam._numOfPlanes); 
+			
+
+		// unbind fbo, vao
+		glBindVertexArray(0);
+		_fbo->Disable();
+
+	//	for(int layer = 20; layer < 80; layer++)
+	//		imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, layer);
+
+		if(ref == 0)
+		{
+			doCudaGetDepth(_cost3D_CUDAArray, _depthmap1_CUDAArray);
+			std::cout<< "the reference camera index: " << refIndex << std::endl;
+			std::cout<< "cameras used for stereo: " << _distTable[2*refIndex + 0] << " and " << _distTable[2*refIndex + 1] << std::endl;
+		}
+		else
+			doCudaGetDepth(_cost3D_CUDAArray, _depthmap2_CUDAArray);
+	}
+	// unmap
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_cost3D_CUDAResource, 0));
-	//CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_color3D_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap1_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap2_CUDAResource, 0));
+	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
+	// --------------------------
 
-	//if(_display_Color_Depth) 
-		CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
-	//else
-	//	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap_CUDAResource, 0));
+	glUseProgram(_shaderHandleRenderScene.getProgramIndex());
+//	_shaderHandleRenderScene.setUniform("step", &_step);
+	glActiveTexture(GL_TEXTURE0); 
+	glBindTexture(GL_TEXTURE_2D, _depthmap1._textureID);
+	int id = 0;
+	//_shaderHandleRenderScene.setUniform("depthTex0", &id);
+	int refIndex = nearCamIndex[0];
 
-	//displayImage( _imageQGLWidgets[0]->_tex._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
-	//if(_display_Color_Depth)
-		displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
-	//else
-		//displayImage(_depthmapView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
+	/*for(int i = 0; i<4;i++)
+		for(int j = 0; j<4; j++)
+			std::cout<< _virtualImg._projMatrix[i][j] << " " ;
+	std::cout<<std::endl;
+	_virtualImg.setProjMatrix();
+	for(int i = 0; i<4;i++)
+		for(int j = 0; j<4; j++)
+			std::cout<< _virtualImg._projMatrix[i][j] << " ";
+	std::cout<<std::endl;*/
+
+	glm::mat4x4 transform =  _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix);
+//	_shaderHandleRenderScene.setUniform("transform0", &transform[0][0]);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex]->_tex._textureID);
+	id = 1;
+	_shaderHandleRenderScene.setUniform("textures", &id);
+
+	glBindVertexArray(_renderVertexArrayObjectHandle);
+	printOpenGLError();
+	glDrawArrays(GL_TRIANGLES, 0, 3072 ); 
+
+	//displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
+
+	//
+	
 
 	// that's it!!!	
+}
+
+void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray)
+{
+	int width = this->_psParam._virtualWidth;
+	int height = this->_psParam._virtualHeight;
+	int numOfImages = this->_psParam._numOfCameras;
+	unsigned int numOfCandidatePlanes = this->_psParam._numOfPlanes;
+
+	// do gaussian filter:
+	GaussianBlurCUDA gaussianF(width, height, _psParam._gaussianSigma);
+	gaussianF.Filter(cost3D_CUDAArray, _psParam._numOfPlanes);
+
+	launchCudaGetDepthMap(cost3D_CUDAArray, depthmap_CUDAArray,_syncView_CUDAArray, width, height, _psParam._numOfPlanes, _psParam._near, _psParam._far, _step);
+
 }
 
 void GLWidgetVirtualView::computeImageError()

@@ -2,9 +2,9 @@
 #include "texture2D.h"
 
 
-texture2D::texture2D(int width, int height): _width(width), _height(height)
+texture2D::texture2D(int width, int height): _width(width), _height(height), _textureID(0)
 {
-
+	
 }
 
 
@@ -34,6 +34,23 @@ void texture2D::create(const GLubyte *pPixels)
 	else
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, _width, _height, 0, GL_BGR_EXT , GL_UNSIGNED_BYTE, &pPixels[0]);	
 	// unbind texture
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void texture2D::createGL_R32UI()
+{
+	if(_textureID != 0)
+		glDeleteTextures(1, &_textureID);
+
+	glGenTextures(1, &_textureID);
+	glBindTexture(GL_TEXTURE_2D, _textureID);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR  );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, _width, _height, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);	
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 

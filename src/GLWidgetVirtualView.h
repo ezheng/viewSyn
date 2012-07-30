@@ -68,25 +68,32 @@ public slots:
 private:
 	VSShaderLib _shaderHandle;
 	VSShaderLib _shaderHandleDisplayLayerTexture;
+	VSShaderLib _shaderHandleRenderScene;
 
 	planeSweepParameters _psParam;
 	GLuint _cost3DTexID;
-	GLuint _color3DTexID;
+//	GLuint _color3DTexID;
 
 	GLuint _psVertexBufferHandle;
 	GLuint _psVertexArrayObjectHandle;
+
+	GLuint _renderVertexBufferHandle;
+	GLuint _renderVertexArrayObjectHandle;
+
 	GLuint _displayLayerTextureVBOHandle;
 	GLuint _displayLayerTextureVAOHandle;
 	
 	FramebufferObject *_fbo;
 	void initTexture3D(GLuint &RTT3D, int imageWidth, int imageHeight, int numOfLayers, bool isColorTexture);
 	void initializeVBO_VAO(float *vertices, int numOfPrimitive, GLuint &vboObject, GLuint &vaoObject);
+	void initializeRenderVBO_VAO(GLuint &vboObject, GLuint &vaoObject);
+
 	void initializeVBO_VAO_DisplayLayerTexture(float *vertices, GLuint &vboObject, GLuint &vaoObject);
 	void displayLayedTexture(GLuint &texture);
 	int printOglError(char *file, int line);
 
 	struct cudaGraphicsResource *_cost3D_CUDAResource;
-	//struct cudaGraphicsResource *_color3D_CUDAResource;
+//	struct cudaGraphicsResource *_color3D_CUDAResource;
 	struct cudaGraphicsResource *_syncView_CUDAResource;
 	//struct cudaGraphicsResource *_depthmap_CUDAResource;
 	struct cudaGraphicsResource *_depthmap1_CUDAResource;
@@ -94,9 +101,8 @@ private:
 
 
 	cudaArray *_cost3D_CUDAArray;
-	//cudaArray *_color3D_CUDAArray;
+//	cudaArray *_color3D_CUDAArray;
 	cudaArray *_syncView_CUDAArray;
-	//cudaArray *_depthmapView_CUDAArray;
 	cudaArray *_depthmap1_CUDAArray;
 	cudaArray *_depthmap2_CUDAArray;
 
@@ -120,6 +126,13 @@ private:
 	void writeFragmentShaderFile(std::string fileName);
 
 	float computeErrorForOneImage(int texture1, int texture2);
+
+	void findNearestCam(int * nearCamIndex, glm::vec3 fixedPos, int notIncluded = -1);
+	void createDistTable();
+	int _distTable[16];
+	void doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray);
+
+	int _numOfVertices;
 };
 
 

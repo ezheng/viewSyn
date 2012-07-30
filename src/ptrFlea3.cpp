@@ -278,10 +278,10 @@ oneCame::oneCame(int id, FlyCapture2::BusManager &busMgr, cv::Mat* img):_cameraI
 	PGR_SAFE_CALL(_cam.SetProperty( &prop ));
 	// set shutter
 	prop.type = FlyCapture2::SHUTTER; prop.autoManualMode = false; prop.onOff = true;
-	prop.absControl = true; prop.absValue = 45; PGR_SAFE_CALL(_cam.SetProperty( &prop ));
+	prop.absControl = true; prop.absValue = 30; PGR_SAFE_CALL(_cam.SetProperty( &prop ));
 	// set frame rate	
 	prop.type = FlyCapture2::FRAME_RATE; prop.autoManualMode = false; prop.onOff = true;
-	prop.absControl = true; prop.absValue = 20; PGR_SAFE_CALL(_cam.SetProperty( &prop ));
+	prop.absControl = true; prop.absValue = 30; PGR_SAFE_CALL(_cam.SetProperty( &prop ));
 	// set auto white balance
 	FlyCapture2::Property prop1;
 	prop1.type = FlyCapture2::WHITE_BALANCE; prop1.onOff = true; prop1.autoManualMode = false;

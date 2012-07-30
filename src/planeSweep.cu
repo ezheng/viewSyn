@@ -9,8 +9,11 @@ texture<uchar4, cudaTextureType3D, cudaReadModeElementType> colorTex;
 
 surface<void, cudaSurfaceType3D> colorTex_Surface;
 surface<void, cudaSurfaceType2D> depthmap_Surface;
+surface<void, cudaSurfaceType2D> depthmapView_Surface;
 
-void CUDA_SAFE_CALL( cudaError_t err, std::string file = __FILE__, int line = __LINE__)
+#define CUDA_SAFE_CALL(err) _CUDA_SAFE_CALL( err,__FILE__, __LINE__)
+
+void _CUDA_SAFE_CALL( cudaError_t err, std::string file = __FILE__, int line = __LINE__)
 {
 	if (err != cudaSuccess) {
 		std::cout<< cudaGetErrorString( err ) << " in file: " << file << " at line: " << line << std::endl;
@@ -54,26 +57,34 @@ __global__ void findDepthMap(int imageWidth, int imageHeight, unsigned int numOf
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
 	
 	if(x < imageWidth && y < imageHeight)
+	//if(x == 2 && y == 2)
 	{
 		float cost = 1000000.0f;
 		float cost2nd = 1000000.0f;
 		int planeIndex; float dataCost = 0; 
+		int planeIndex2nd;
 		for(unsigned int i = 0; i<numOfCandidatePlanes; i++)
 		{		
 			dataCost = tex3D(layeredTex, x + 0.5, y + 0.5, i + 0.5);
+			
 			if(dataCost < cost)
 			{
+				cost2nd = cost;	// the smallest cost replace the second smallest cost
+				planeIndex2nd = planeIndex;
+				//-----------------------------------------
 				cost = dataCost;
 				planeIndex = i;
 			}
 			else if( dataCost < cost2nd)
 			{
 				cost2nd = dataCost;
+				planeIndex2nd = i;
 			}
 		}
 		float depth;
-		if( (cost2nd - cost + 0.00001)/(cost2nd + 0.00001) < 0.2)	// the depth is not reliable
-		{
+		if( (cost2nd - cost)/(cost2nd + 0.00001) < -0.1/2 && abs(planeIndex - planeIndex2nd)>1)	// the depth is not reliable
+		{			
+			planeIndex = numOfCandidatePlanes - 1;		// set the index to the last plane
 			depth = far;
 		}
 		else
@@ -81,10 +92,13 @@ __global__ void findDepthMap(int imageWidth, int imageHeight, unsigned int numOf
 			float d = -1.0f + step * float( planeIndex + 1);
 			depth = -2 * far * near/ (d * (far - near) - (far + near));
 		}
+		//printf("%u \n", planeIndex);
+		surf2Dwrite( planeIndex, depthmap_Surface, x * 4, y, cudaBoundaryModeTrap);
+		
 		float normalizedDepth = 255.0f * (depth - near)/ (far - near);
 		uchar4 depthValue = make_uchar4(normalizedDepth, normalizedDepth,normalizedDepth, 255);
 
-		surf2Dwrite( depthValue, depthmap_Surface, x * 4, y, cudaBoundaryModeTrap);
+		surf2Dwrite( depthValue, depthmapView_Surface, x * 4, y, cudaBoundaryModeTrap);
 	}
 }
 
@@ -106,13 +120,16 @@ __global__ void writeToSurfaceColor(int width, int height)
 
 }
 
-void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmapView_CUDAArray,
+void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmap_CUDAArray  , cudaArray *depthmapView_CUDAArray,
 	int imgWidth, int imgHeight, unsigned int numOfCandidatePlanes, float near, float far, float step)
 {
 	// bind texture and surface 
 	CUDA_SAFE_CALL(cudaBindTextureToArray(layeredTex, cost3D_CUDAArray));
-	layeredTex.normalized = false;
-	cudaBindSurfaceToArray(depthmap_Surface, depthmapView_CUDAArray);
+ 	layeredTex.normalized = false;
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(depthmapView_Surface, depthmapView_CUDAArray));
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(depthmap_Surface, depthmap_CUDAArray));
+
+	
 
 	// launch kernel
 	int blockDimX = 16; int blockDimY = 16;
@@ -121,6 +138,7 @@ void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmapView_
 	findDepthMap<<<grid, block >>>(imgWidth, imgHeight, numOfCandidatePlanes, near, far, step);
 
 	CUDA_SAFE_CALL(cudaUnbindTexture(layeredTex));
+
 }
 
 
@@ -153,3 +171,5 @@ void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray
 	CUDA_SAFE_CALL(cudaUnbindTexture(colorTex));
 
 }
+
+

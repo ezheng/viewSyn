@@ -60,6 +60,7 @@ cuda_add_executable(viewSyn
 					  src/planeSweep.cu
 					  src/utility.h 	src/utility.cpp
 					  src/GaussianBlurCUDA.h src/GaussianBlurCUDA.cu
+					  shader/renderScene.vert shader/renderScene.geom shader/renderScene.frag 
                       ${MOC_OUTFILES}
                       ${UI_OUTFILES}					  
               )

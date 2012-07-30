@@ -23,7 +23,7 @@ public:
 	void bindTexture();
 	void unBindTexture();
 	void upLoad(const GLubyte *pPixels, int width, int height);
-	
+	void createGL_R32UI();
 };
 
 #endif

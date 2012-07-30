@@ -31,12 +31,15 @@ public:
 	glm::mat4x4 _modelViewMatrix;
 	glm::mat4x4 _projMatrix;
 	
+	float _near;
+	float _far;
+
 //-------------------
 	std::string _imageName;
 	cv::Mat _image;
 	void setModelViewMatrix();
 	void setProjMatrix();
-
+	void setProjMatrix(float Near, float Far);
 	
 	cv::Mat calculateFundMatrix(const image &im);		
 	image(std::string fileName, double * K, double *R, double *T);
