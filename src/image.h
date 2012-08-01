@@ -37,7 +37,8 @@ public:
 	void setModelViewMatrix();
 	void setProjMatrix();
 
-	
+	void updateCamParam(double *K, double *R, double *T);
+
 	cv::Mat calculateFundMatrix(const image &im);		
 	image(std::string fileName, double * K, double *R, double *T);
 	image(){}

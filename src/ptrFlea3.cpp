@@ -2,6 +2,8 @@
 #include <vector>
 #include <algorithm>
 #include <QMutexLocker>
+#include <algorithm>
+#include <numeric> 
 
 #define PGR_SAFE_CALL(error) _pgrSafeCall(error, __FILE__, __LINE__)
 void _pgrSafeCall(FlyCapture2::Error err, std::string fileName, int lineNum)
@@ -16,12 +18,26 @@ void _pgrSafeCall(FlyCapture2::Error err, std::string fileName, int lineNum)
 
 unsigned int allImageCaptureManager::returnNumberOfCams()
 {
+	PGR_SAFE_CALL( _busMgr.GetNumOfCameras(&_numOfCams));
 	return _numOfCams;
+}
+
+std::vector<int> ordered(std::vector<unsigned int> const& values) {
+    std::vector<int> indices(values.size());
+    std::iota(begin(indices), end(indices), static_cast<int>(0));
+
+    std::sort(
+        begin(indices), end(indices),
+        [&](int a, int b) { return values[a] < values[b]; }
+    );
+    return indices;
 }
 
 allImageCaptureManager::allImageCaptureManager(std::vector<image>* ims):_numOfCams(0)
 {
 	PGR_SAFE_CALL( _busMgr.GetNumOfCameras(&_numOfCams));
+
+	
 
 	if(_numOfCams == 0)
 	{
@@ -41,8 +57,14 @@ allImageCaptureManager::allImageCaptureManager(std::vector<image>* ims):_numOfCa
 
 	for(unsigned int i = 0; i<_numOfCams; i++)
 		_allCames[i]->startCapture(); // start capture
-
-	Sleep(10);
+	//--------------------------------------------------------------
+	std::vector<unsigned int> _serialNumber(_numOfCams);
+	for(unsigned int i = 0;i<_numOfCams; i++)
+	{
+		_serialNumber[i] = _allCames[i]->getCamInfo().serialNumber;
+	}
+	_indices = ordered(_serialNumber);
+	//--------------------------------------------------------------
 
 	_threads = new QThread[_numOfCams];
 	for(unsigned int i = 0; i<_numOfCams;i++)
@@ -57,7 +79,7 @@ allImageCaptureManager::allImageCaptureManager(std::vector<image>* ims):_numOfCa
 	for(unsigned int i = 0; i<_numOfCams; i++)
 		_threads[i].start();	// start the new thread	
 		
-	emit retrieveImgsAllParallel();
+	//emit retrieveImgsAllParallel_SLOTS();
 	
 }
 
@@ -72,38 +94,76 @@ bool allImageCaptureManager::allFlagsReady()
 	return allReady;
 }
 
-std::vector<image> * allImageCaptureManager::retrieveImgsAllParallel(std::vector<image> *newBuffer)
+void allImageCaptureManager::swapBuffer( std::vector<image> ** newBuffer)
 {
-	// query if all the data is ready. Using flags in each camera
-	// If the data is ready, then swap buffers
-	
-	// 
-	while(! allFlagsReady())
-	{/*std::cout<<"waiting " << iii << std::endl; ii++;*/ }
-	std::cout<< std::endl;
 
 	std::vector<image>* temp;
 	temp = _allIms;
-	_allIms = newBuffer;
-	newBuffer = temp;
-	//----------------------------------------------------------------------------
-	_allIms->clear();
-	_allIms->resize(_numOfCams);	
+	_allIms = *newBuffer;
+	*newBuffer = temp;
+//----------------------------------------------------------------
+	//_allIms->clear();
+	//_allIms->resize(_numOfCams);	
 	for(unsigned int i = 0; i<_numOfCams; i++)
-	{
-		_allCames[i]->updateCameraPoints(&((*_allIms)[i]._image));
+	{		 
+		_allCames[_indices[i]]->updateCameraPoints(&((*_allIms)[i]._image));
 	}
-	//QObject::thread()->msleep(500);
+}
 
-	// reset all the flags, and start reading data into cameras
+void allImageCaptureManager:: retrieveImgsAllParallel_SLOTS( )
+{
+	//while(! allFlagsReady())
+	//{/*std::cout<<"waiting " << iii << std::endl; ii++;*/ }
+	//std::cout<< std::endl;
+		
+
 	for(unsigned int i = 0; i<_numOfCams; i++)
 		_allCames[i]->_readyFlag = false;	
-	
-	emit retrieveImgsAllParallel(); // this one capturing data to the newBuffer.
-	//retrieveImgsAllParallel();
-	//----------------------------------------------------------------------------- 
-	return newBuffer;
+	emit retrieveImgsAllParallel(); 
+
+	// wait here:
+	while(! allFlagsReady())
+	{/*std::cout<<"waiting " << iii << std::endl; ii++;*/ }
+
+	// emit signal to the main thread to notify 
+	emit imageReady_SIGNAL();
+
 }
+
+
+//std::vector<image> * allImageCaptureManager::retrieveImgsAllParallel(std::vector<image> *newBuffer)
+//{
+//	// query if all the data is ready. Using flags in each camera
+//	// If the data is ready, then swap buffers
+//	
+//	// 
+//	while(! allFlagsReady())
+//	{/*std::cout<<"waiting " << iii << std::endl; ii++;*/ }
+//	std::cout<< std::endl;
+//
+//	std::vector<image>* temp;
+//	temp = _allIms;
+//	_allIms = newBuffer;
+//	newBuffer = temp;
+//	//----------------------------------------------------------------------------
+//	
+//	_allIms->clear();
+//	_allIms->resize(_numOfCams);	
+//	for(unsigned int i = 0; i<_numOfCams; i++)
+//	{
+//		_allCames[i]->updateCameraPoints(&((*_allIms)[i]._image));
+//	}
+//	//QObject::thread()->msleep(500);
+//
+//	// reset all the flags, and start reading data into cameras
+//	for(unsigned int i = 0; i<_numOfCams; i++)
+//		_allCames[i]->_readyFlag = false;	
+//	
+//	emit retrieveImgsAllParallel(); // this one capturing data to the newBuffer.
+//	//retrieveImgsAllParallel();
+//	//----------------------------------------------------------------------------- 
+//	return newBuffer;
+//}
 
 
 void allImageCaptureManager::retrieveImgsAll()
@@ -193,8 +253,8 @@ void oneCame::retrieveImage()
 	
 
 	  FlyCapture2::TimeStamp t1 = _img.GetTimeStamp();
-	  std::cout<< "second" << _cameraId << ": " << t1.seconds << " microseconds" << _cameraId << ": " << t1.microSeconds 
-		  << " current thread id" << GetCurrentThreadId() << std::endl;
+	//  std::cout<< "second" << _cameraId << ": " << t1.seconds << " microseconds" << _cameraId << ": " << t1.microSeconds 
+	//	  << " current thread id" << GetCurrentThreadId() << std::endl;
 	// FlyCapture2::TimeStamp t2 = rawImage[2].GetTimeStamp();
 	// std::cout<< "second2: " << t2.seconds << " millionSeconds1: " << t2.microSeconds<< std::endl;
 
@@ -218,10 +278,11 @@ void oneCame::retrieveImage()
 			//for(int i
 			for(int j = 0; j< width; j++)
 			{
-				int offset = i*stride + j * 3;
-				_imgOPENCV->data[offset + 2] = dataPoint[offset];
-				_imgOPENCV->data[offset ] = dataPoint[offset + 2];
-				_imgOPENCV->data[offset + 1] = dataPoint[offset + 1];
+				int offsetOrig = i*stride + j * 3;
+				int offsetDest = (height - 1 - i) * stride + j * 3;
+				_imgOPENCV->data[offsetDest + 2] = dataPoint[offsetOrig];
+				_imgOPENCV->data[offsetDest ] = dataPoint[offsetOrig + 2];
+				_imgOPENCV->data[offsetDest + 1] = dataPoint[offsetOrig + 1];
 			}
 		}
 	//	this->stopCapture();
@@ -313,5 +374,11 @@ oneCame::~oneCame()
 	
 };
 
+FlyCapture2:: CameraInfo oneCame::getCamInfo()
+{
+	FlyCapture2::CameraInfo camInfo;
+    PGR_SAFE_CALL(_cam.GetCameraInfo( &camInfo ));	
 
+	return camInfo;
+}
 

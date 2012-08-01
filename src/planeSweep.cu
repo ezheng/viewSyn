@@ -72,7 +72,7 @@ __global__ void findDepthMap(int imageWidth, int imageHeight, unsigned int numOf
 			}
 		}
 		float depth;
-		if( (cost2nd - cost + 0.00001)/(cost2nd + 0.00001) < 0.2)
+		if( (cost2nd - cost + 0.00001)/(cost2nd + 0.00001) < -0.2)
 		{
 			depth = far;
 		}

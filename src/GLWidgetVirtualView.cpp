@@ -35,7 +35,7 @@ int GLWidgetVirtualView:: printOglError(char *file, int line)
 
 GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidget *sharedWidget,
 	const QList<GLWidget*>& imageQGLWidgets): 
-	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[3]),
+	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[2]),
 		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _psVertexBufferHandle(0),
 		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
 		_depthmapView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), _display_Color_Depth(true)
@@ -51,11 +51,14 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 100;
+	_psParam._numOfPlanes = 80;
 	_psParam._numOfCameras  = 5;	
-	_psParam._gaussianSigma = 2.0f;
-	_psParam._near = 5.f;
-	_psParam._far = 9.f;
+	_psParam._gaussianSigma = 1.414f;
+	_psParam._near = 1200.f;
+	_psParam._far =  2200.f;
+	//	_psParam._near = 5.f;
+	//_psParam._far = 10.5f;
+
 	//_psParam._near = .45f;
 	//_psParam._far = .6f;
 
@@ -66,8 +69,8 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	std::string filePath = std::string(std::getenv("SHADER_FILE_PATH"));
 	_warpingGeoFileName = filePath + "\\warping.geom";
 	_warpingFragFileName = filePath + "\\warping.frag";
-	writeGeometryShaderFile(_warpingGeoFileName);
-	writeFragmentShaderFile(_warpingFragFileName);
+	//writeGeometryShaderFile(_warpingGeoFileName);
+	//writeFragmentShaderFile(_warpingFragFileName);
 }
 
 void GLWidgetVirtualView::setPlaneParam_slot(planeSweepParameters param)
@@ -183,17 +186,17 @@ void GLWidgetVirtualView::initializeGL()
 	printOpenGLError();
 
 	// register the 3d texture so that CUDA can use it
-	size_t free, total; float mb = 1<<20;
-	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
+	//size_t free, total; float mb = 1<<20;
+	//cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_cost3D_CUDAResource, _cost3DTexID, 
 				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 3d texture
-	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
+	//cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_color3D_CUDAResource, _color3DTexID, 
-				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsReadOnly ));// register the 3d texture
+				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsNone ));// register the 3d texture
 
-	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
+	//cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_syncView_CUDAResource, _syncView._textureID, 
 				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone ));// register the 2d texture
@@ -370,7 +373,7 @@ void GLWidgetVirtualView::resizeGL(int w, int h)
 void GLWidgetVirtualView::paintGL()
 {
 	// ***** maybe no depth buffer is needed in first pass
-	//glClear(GL_COLOR_BUFFER_BIT); 	
+	glClear(GL_COLOR_BUFFER_BIT); 	
 	printOpenGLError();
 	//---------------------
 	// set up the uniforms: images, transformation matrix, etc...
@@ -381,6 +384,9 @@ void GLWidgetVirtualView::paintGL()
 	glm::mat4 projScaleTrans = glm::translate(glm::vec3(0.5f)) * glm::scale(glm::vec3(0.5f));
 	glm::mat4 virtInverseModelViewProj = glm::inverse(_virtualImg._modelViewMatrix) 
 		* glm::inverse(_virtualImg._projMatrix);
+
+	
+
 	// *****
 	int numOfImages = _psParam._numOfCameras;
 	glm::mat4 *modelViewProj = new glm::mat4[numOfImages];
@@ -389,6 +395,12 @@ void GLWidgetVirtualView::paintGL()
 	{
 		modelViewProj[i] = (**_allIms)[i]._projMatrix * (**_allIms)[i]._modelViewMatrix;
 		glm::mat4x4 transformMatrix = projScaleTrans * modelViewProj[i] * virtInverseModelViewProj;
+
+		glm::vec4 x = transformMatrix * glm::vec4(0,0,0,1.0f);
+		/*for(int jj = 0; jj<4; jj++)
+			std::cout<< (&x[0])[jj] << std::endl;*/
+
+
 		std::copy ( &(transformMatrix[0][0]), &(transformMatrix[0][0]) + 16, allTransformMatrix + 16 * i );
 		std::stringstream ss; ss<<i;
 		//std::string uniformVarName = "transformMatrix" + ss.str();
@@ -400,6 +412,9 @@ void GLWidgetVirtualView::paintGL()
 		_shaderHandle.setUniform(("tex" + ss.str()).c_str(), &i);
 		printOpenGLError();
 	}
+	for(int i = 4; i<12; i++)
+		std::cout<< allTransformMatrix[i] << std::endl;
+
 	_shaderHandle.setUniform( "transformMatrix[0]", allTransformMatrix);
 	printOpenGLError();
 	
@@ -417,8 +432,8 @@ void GLWidgetVirtualView::paintGL()
 	glBindVertexArray(0);
 	_fbo->Disable();
 	//*****
-	/*for(int i = 50; i<100; i++)
-		imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, i);*/
+	
+
 
 	//displayLayedTexture(_cost3DTexID);
 	//displayLayedTexture(_color3DTexID);
@@ -457,7 +472,13 @@ void GLWidgetVirtualView::paintGL()
 	else
 		displayImage(_depthmapView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
 
+	for(int k= 20; k<75; k++)
+	{
+		//imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, k);
+		//imdebugTexImage(GL_TEXTURE_2D, _imageQGLWidgets[k]->_tex._textureID, GL_RGBA);
+	}
 	// that's it!!!	
+	
 }
 
 void GLWidgetVirtualView::computeImageError()
