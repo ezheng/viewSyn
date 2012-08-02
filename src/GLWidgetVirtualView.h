@@ -13,6 +13,7 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 #include "texture2D.h"
+#include <QTime>
 
 class planeSweepParameters
 {
@@ -135,6 +136,11 @@ private:
 	void renderUsingDepth(int refIndex, int refIndex1);
 
 	int _numOfVertices;
+	QTime _t;
+	float _totalTime;
+	int _numOfFrame;
+signals:
+	void updateGL_SIGNAL();
 };
 
 

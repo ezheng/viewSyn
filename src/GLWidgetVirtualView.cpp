@@ -57,7 +57,7 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 100;
+	_psParam._numOfPlanes = 150;
 	_psParam._numOfCameras  = 5;	
 	_psParam._gaussianSigma = 1.4f;
 	_psParam._near = 4.0f;
@@ -312,6 +312,11 @@ void GLWidgetVirtualView::initializeGL()
 
 	createDistTable();
 	printOpenGLError();
+
+	_t.start();
+	_totalTime = 0;
+	_numOfFrame = 0;
+	QObject::connect(this, SIGNAL(updateGL_SIGNAL()), this, SLOT(updateGL()), Qt::QueuedConnection);
 }
 
 void GLWidgetVirtualView:: displayImage(GLuint texture, int imageWidth, int imageHeight)
@@ -520,6 +525,11 @@ void GLWidgetVirtualView::createDistTable()
 
 void GLWidgetVirtualView::paintGL()
 {
+	_totalTime += _t.restart();
+	 ++_numOfFrame;
+	 if(_numOfFrame % 50 == 0)
+	 std::cout << "frame rate is: " <<  static_cast<float>(_numOfFrame) / _totalTime * 1000 << " Hz"<< std::endl;
+
 	// ***** maybe no depth buffer is needed in first pass
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 	
 	
@@ -598,12 +608,12 @@ void GLWidgetVirtualView::paintGL()
 		if(ref == 0)
 		{
 			doCudaGetDepth(_cost3D_CUDAArray, _depthmap1_CUDAArray);
-			std::cout<< "the reference camera index: " << refIndex << std::endl;
-			std::cout<< "cameras used for stereo: " << _distTable[2*refIndex + 0] << " and " << _distTable[2*refIndex + 1] << std::endl;
+			//std::cout<< "the reference camera index: " << refIndex << std::endl;
+			//std::cout<< "cameras used for stereo: " << _distTable[2*refIndex + 0] << " and " << _distTable[2*refIndex + 1] << std::endl;
 		}
 		else
 		{
-			doCudaGetDepth(_cost3D_CUDAArray, _depthmap2_CUDAArray);
+			//doCudaGetDepth(_cost3D_CUDAArray, _depthmap2_CUDAArray);
 			//std::cout<< "the reference camera index: " << refIndex << std::endl;
 			//std::cout<< "cameras used for stereo: " << _distTable[2*refIndex + 0] << " and " << _distTable[2*refIndex + 1] << std::endl;
 		}
@@ -613,17 +623,22 @@ void GLWidgetVirtualView::paintGL()
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap1_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap2_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
+
+
 	// --------------------------
+	if(_display_Color_Depth)
+	{
 	glEnable(GL_DEPTH_TEST);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 	
 	renderUsingDepth(nearCamIndex[0], nearCamIndex[1]);
 	glDisable(GL_DEPTH_TEST);
-
-	//displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
+	}
+	else
+		displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
 
 	//
 	
-
+	//emit updateGL_SIGNAL(); 
 	// that's it!!!	
 }
 
@@ -644,7 +659,7 @@ void GLWidgetVirtualView::renderUsingDepth(int refIndex, int refIndex1)
 	id = 1;
 	_shaderHandleRenderScene.setUniform("depthTex1", &id);*/
 	
-
+	_virtualImg.setProjMatrix(0.1, 1000);
 	
 
 	glm::mat4x4 transform =  _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix);
@@ -680,9 +695,11 @@ void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray*
 	unsigned int numOfCandidatePlanes = this->_psParam._numOfPlanes;
 
 	// do gaussian filter:
-	GaussianBlurCUDA gaussianF(width, height, _psParam._gaussianSigma);
-	gaussianF.Filter(cost3D_CUDAArray, _psParam._numOfPlanes);
-
+	if(_psParam._gaussianSigma != 0)
+	{
+		GaussianBlurCUDA gaussianF(width, height, _psParam._gaussianSigma);
+		gaussianF.Filter(cost3D_CUDAArray, _psParam._numOfPlanes);
+	}
 	launchCudaGetDepthMap(cost3D_CUDAArray, depthmap_CUDAArray,_syncView_CUDAArray, width, height, _psParam._numOfPlanes, _psParam._near, _psParam._far, _step);
 
 }
