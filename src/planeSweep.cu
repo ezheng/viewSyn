@@ -82,7 +82,7 @@ __global__ void findDepthMap(int imageWidth, int imageHeight, unsigned int numOf
 			}
 		}
 		float depth;
-		if( (cost2nd - cost)/(cost2nd + 0.00001) < -0.1/2 && abs(planeIndex - planeIndex2nd)>1)	// the depth is not reliable
+		if( (cost2nd - cost)/(cost2nd + 0.00001) < 0.1 && abs(planeIndex - planeIndex2nd)>1)	// the depth is not reliable
 		{			
 			planeIndex = numOfCandidatePlanes - 1;		// set the index to the last plane
 			depth = far;

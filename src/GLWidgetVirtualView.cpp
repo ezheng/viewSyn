@@ -195,7 +195,13 @@ void GLWidgetVirtualView::initializeRenderVBO_VAO(GLuint &vboObject, GLuint &vao
 	}
 	glGenBuffers(1, & vboObject);
 	glBindBuffer(GL_ARRAY_BUFFER, vboObject);
-	glBufferData(GL_ARRAY_BUFFER, numOfDigits, vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, numOfDigits*sizeof(float), vertices, GL_STATIC_DRAW);
+
+	//float xy[6] = {-0.5, -0.5, -0.5, 0.5, 0.5, 0.7};
+	//glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(float), xy, GL_STATIC_DRAW);
+
+	glGenVertexArrays(1, &vaoObject);
+	glBindVertexArray(vaoObject);
 
 	glEnableVertexAttribArray(VSShaderLib::VERTEX_COORD_ATTRIB); // Vertex position
 	glVertexAttribPointer( VSShaderLib::VERTEX_COORD_ATTRIB, 2,		// Specifies the number of components per generic vertex attribute. Must be 1, 2, 3, or 4. The initial value is 4.
@@ -247,7 +253,7 @@ void GLWidgetVirtualView::initializeGL()
 	float vertices[3] = {0.0f, 0.0f, 0.0f};
 	initializeVBO_VAO(vertices, 1, _psVertexBufferHandle, _psVertexArrayObjectHandle);	// here 1 is the number of primitives
 
-	initializeRenderVBO_VAO(_renderVertexBufferHandle, _renderVertexArrayObjectHandle);
+	
 
 	// set up fbo?
 	_fbo = new FramebufferObject();
@@ -279,6 +285,7 @@ void GLWidgetVirtualView::initializeGL()
 		// tex coord
 	0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0};
 	initializeVBO_VAO_DisplayLayerTexture(verticesQuadWithTexCoord, _displayLayerTextureVBOHandle, _displayLayerTextureVAOHandle);
+	initializeRenderVBO_VAO(_renderVertexBufferHandle, _renderVertexArrayObjectHandle);
 
 	printOpenGLError();
 
@@ -514,7 +521,7 @@ void GLWidgetVirtualView::createDistTable()
 void GLWidgetVirtualView::paintGL()
 {
 	// ***** maybe no depth buffer is needed in first pass
-	glClear(GL_COLOR_BUFFER_BIT); 	
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 	
 	
 	//find the nearest two cameras.
 	int nearCamIndex[2] = {0};
@@ -540,7 +547,7 @@ void GLWidgetVirtualView::paintGL()
 	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_syncView_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_syncView_CUDAArray, _syncView_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
 
-	for(int ref = 0; ref<1; ref++)
+	for(int ref = 0; ref<2; ref++)
 	{
 		int refIndex = nearCamIndex[ref];
 		glActiveTexture(GL_TEXTURE2);
@@ -595,7 +602,11 @@ void GLWidgetVirtualView::paintGL()
 			std::cout<< "cameras used for stereo: " << _distTable[2*refIndex + 0] << " and " << _distTable[2*refIndex + 1] << std::endl;
 		}
 		else
+		{
 			doCudaGetDepth(_cost3D_CUDAArray, _depthmap2_CUDAArray);
+			//std::cout<< "the reference camera index: " << refIndex << std::endl;
+			//std::cout<< "cameras used for stereo: " << _distTable[2*refIndex + 0] << " and " << _distTable[2*refIndex + 1] << std::endl;
+		}
 	}
 	// unmap
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_cost3D_CUDAResource, 0));
@@ -603,36 +614,10 @@ void GLWidgetVirtualView::paintGL()
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_depthmap2_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
 	// --------------------------
-
-	glUseProgram(_shaderHandleRenderScene.getProgramIndex());
-//	_shaderHandleRenderScene.setUniform("step", &_step);
-	glActiveTexture(GL_TEXTURE0); 
-	glBindTexture(GL_TEXTURE_2D, _depthmap1._textureID);
-	int id = 0;
-	//_shaderHandleRenderScene.setUniform("depthTex0", &id);
-	int refIndex = nearCamIndex[0];
-
-	/*for(int i = 0; i<4;i++)
-		for(int j = 0; j<4; j++)
-			std::cout<< _virtualImg._projMatrix[i][j] << " " ;
-	std::cout<<std::endl;
-	_virtualImg.setProjMatrix();
-	for(int i = 0; i<4;i++)
-		for(int j = 0; j<4; j++)
-			std::cout<< _virtualImg._projMatrix[i][j] << " ";
-	std::cout<<std::endl;*/
-
-	glm::mat4x4 transform =  _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix);
-//	_shaderHandleRenderScene.setUniform("transform0", &transform[0][0]);
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex]->_tex._textureID);
-	id = 1;
-	_shaderHandleRenderScene.setUniform("textures", &id);
-
-	glBindVertexArray(_renderVertexArrayObjectHandle);
-	printOpenGLError();
-	glDrawArrays(GL_TRIANGLES, 0, 3072 ); 
+	glEnable(GL_DEPTH_TEST);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 	
+	renderUsingDepth(nearCamIndex[0], nearCamIndex[1]);
+	glDisable(GL_DEPTH_TEST);
 
 	//displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
 
@@ -640,6 +625,51 @@ void GLWidgetVirtualView::paintGL()
 	
 
 	// that's it!!!	
+}
+
+void GLWidgetVirtualView::renderUsingDepth(int refIndex, int refIndex1)
+{
+	glUseProgram(_shaderHandleRenderScene.getProgramIndex());
+	_shaderHandleRenderScene.setUniform("step", &_step);
+
+	glActiveTexture(GL_TEXTURE0); 
+	glBindTexture(GL_TEXTURE_2D, _depthmap1._textureID);
+	int id = 0;
+	_shaderHandleRenderScene.setUniform("depthTex0", &id);
+	//int refIndex = nearCamIndex[0];
+
+
+	/*glActiveTexture(GL_TEXTURE1); 
+	glBindTexture(GL_TEXTURE_2D, _depthmap2._textureID);
+	id = 1;
+	_shaderHandleRenderScene.setUniform("depthTex1", &id);*/
+	
+
+	
+
+	glm::mat4x4 transform =  _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix);
+	_shaderHandleRenderScene.setUniform("transform0", &transform[0][0]);
+	
+
+	/*glm::mat4x4 transform1 =  _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex1]._projMatrix * (**_allIms)[refIndex1]._modelViewMatrix);
+	_shaderHandleRenderScene.setUniform("transform1", &transform1[0][0]);*/
+	
+
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex]->_tex._textureID);
+	id = 2;
+	_shaderHandleRenderScene.setUniform("textures0", &id);
+
+	/*glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex1]->_tex._textureID);
+	id = 3;
+	_shaderHandleRenderScene.setUniform("textures", &id);*/
+
+
+
+	glBindVertexArray(_renderVertexArrayObjectHandle);
+	printOpenGLError();
+	glDrawArrays(GL_TRIANGLES, 0, _numOfVertices ); 
 }
 
 void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray)

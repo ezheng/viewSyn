@@ -131,6 +131,8 @@ private:
 	void createDistTable();
 	int _distTable[16];
 	void doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray);
+	//void renderUsingDepth(int refIndex);
+	void renderUsingDepth(int refIndex, int refIndex1);
 
 	int _numOfVertices;
 };

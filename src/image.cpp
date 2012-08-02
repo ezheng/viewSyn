@@ -29,6 +29,7 @@ image::image(std::string fileName, double * K, double *R, double *T): _near(0.1f
 	}
 	// due to difference in storage (colmn major)
 	_glmK = glm::transpose(_glmK); _glmR = glm::transpose(_glmR);
+
 	// -------------------------------------------------------------
 	_glmT[0] = static_cast<float>(T[0]); _glmT[1] = static_cast<float>(T[1]); _glmT[2] = static_cast<float>(T[2]);
 	_glmC = -glm::transpose(_glmR) * _glmT;
