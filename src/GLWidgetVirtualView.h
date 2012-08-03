@@ -139,6 +139,20 @@ private:
 	QTime _t;
 	float _totalTime;
 	int _numOfFrame;
+
+
+	GLuint _feedback;
+	GLuint _depthPointsVBO_output;
+	GLuint _depthPointsVBO_input;
+	GLuint _depthPointsVAO_input;
+	GLuint _depthPointsVAO_output;
+	VSShaderLib _shaderHandleGenerate3DPoints; 
+	VSShaderLib _shaderHandleRenderMesh;
+	void prepare3DPointsShader();
+	void generate3DPoints(int refIndex, int refIndex2);
+	void renderMesh(int refIndex, int refIndex2);
+
+
 signals:
 	void updateGL_SIGNAL();
 };

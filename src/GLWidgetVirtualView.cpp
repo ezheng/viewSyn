@@ -44,7 +44,8 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 		_renderVertexArrayObjectHandle(0), _renderVertexBufferHandle(0),
 		_display_Color_Depth(true),
 		_depthmap1((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
-		_depthmap2((**allIms)[0]._image.cols, (**allIms)[0]._image.rows)
+		_depthmap2((**allIms)[0]._image.cols, (**allIms)[0]._image.rows),
+		_feedback(0)
 { 
 	int width, height;
 	if( (*allIms)->size() <1){	
@@ -57,7 +58,7 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 150;
+	_psParam._numOfPlanes = 120;
 	_psParam._numOfCameras  = 5;	
 	_psParam._gaussianSigma = 1.4f;
 	_psParam._near = 4.0f;
@@ -209,6 +210,72 @@ void GLWidgetVirtualView::initializeRenderVBO_VAO(GLuint &vboObject, GLuint &vao
 	printOpenGLError();
 }
 
+
+void GLWidgetVirtualView::prepare3DPointsShader()
+{
+	_shaderHandleGenerate3DPoints.init();
+	std::string filePath = std::string(std::getenv("SHADER_FILE_PATH"));
+	_shaderHandleGenerate3DPoints.loadShader(VSShaderLib::VERTEX_SHADER, (filePath + "\\generate3DPoints.vert"));
+	std::cout<<"vertex shader: " << _shaderHandleGenerate3DPoints.getShaderInfoLog(VSShaderLib::VERTEX_SHADER) << std::endl;
+	_shaderHandleGenerate3DPoints.loadShader(VSShaderLib::GEOMETRY_SHADER, (filePath + "\\generate3DPoints.geom"));
+	std::cout<<"geometry shader: " << _shaderHandleGenerate3DPoints.getShaderInfoLog(VSShaderLib::GEOMETRY_SHADER) << std::endl;
+
+	int imageWidth = _psParam._virtualWidth;
+	int imageHeight = _psParam._virtualHeight;
+	float *vertices = new float[imageWidth * imageHeight *2 * sizeof(float)];
+	for(int row = 0; row<imageHeight; row++)
+		for(int col = 0; col<imageWidth; col++)
+		{
+			vertices[(row * imageWidth + col) * 2 ] = (static_cast<float>(col) + 0.5f)/static_cast<float>(imageWidth);
+			vertices[(row * imageWidth + col) * 2 + 1 ] = (static_cast<float>(row) + 0.5f)/static_cast<float>(imageHeight);
+		}
+
+	glGenBuffers(1, &_depthPointsVBO_input);
+	glBindBuffer(GL_ARRAY_BUFFER, _depthPointsVBO_input);
+	glBufferData(GL_ARRAY_BUFFER, imageWidth * imageHeight * sizeof(float) * 2, vertices, GL_STATIC_DRAW ); // 1 point with each having (x,y)
+
+	glGenVertexArrays(1, &_depthPointsVAO_input);
+	glBindVertexArray(_depthPointsVAO_input);
+
+	glEnableVertexAttribArray(VSShaderLib::VERTEX_COORD_ATTRIB); // Vertex position
+	glVertexAttribPointer( VSShaderLib::VERTEX_COORD_ATTRIB, 2,		// Specifies the number of components per generic vertex attribute. Must be 1, 2, 3, or 4. The initial value is 4.
+		GL_FLOAT, GL_FALSE, 0,(GLubyte *)NULL );	// 0 is the stride
+	printOpenGLError();
+//-------------------------------------------------------------------------------------------------------
+
+	glGenBuffers(1, &_depthPointsVBO_output);
+	glBindBuffer(GL_ARRAY_BUFFER, _depthPointsVBO_output);
+	glBufferData(GL_ARRAY_BUFFER, imageWidth * imageHeight * 4 * sizeof(float) * 4 * 2, NULL, GL_STATIC_DRAW);// 2 depthmap, 4 points, with each having (x,y,z,w), 
+
+	glGenTransformFeedbacks(1, &_feedback);
+	glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, _feedback);
+	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, _depthPointsVBO_output);
+
+	static const char *varying_names[] = { "gl_Position" };
+	glTransformFeedbackVaryings(_shaderHandleGenerate3DPoints.getProgramIndex(), 1, varying_names, GL_SEPARATE_ATTRIBS);
+	_shaderHandleGenerate3DPoints.prepareProgram();
+	printOpenGLError();
+
+	glGenVertexArrays(1, &_depthPointsVAO_output);
+	glBindVertexArray(_depthPointsVAO_output);
+	glEnableVertexAttribArray(VSShaderLib::VERTEX_COORD_ATTRIB); // Vertex position
+	glVertexAttribPointer( VSShaderLib::VERTEX_COORD_ATTRIB, 4,		// Specifies the number of components per generic vertex attribute. Must be 1, 2, 3, or 4. The initial value is 4.
+		GL_FLOAT, GL_FALSE, 0,(GLubyte *)NULL );	// 0 is the stride
+	printOpenGLError();
+
+
+//------------------------------------------------------------------------------------------------------
+	_shaderHandleRenderMesh.init();
+	_shaderHandleRenderMesh.loadShader(VSShaderLib::VERTEX_SHADER, (filePath + "\\renderMesh.vert"));
+	std::cout<<"vertex shader: " << _shaderHandleRenderMesh.getShaderInfoLog(VSShaderLib::VERTEX_SHADER) << std::endl;
+	_shaderHandleRenderMesh.loadShader(VSShaderLib::FRAGMENT_SHADER, (filePath + "\\renderMesh.frag"));
+	std::cout<<"fragment shader: " << _shaderHandleRenderMesh.getShaderInfoLog(VSShaderLib::FRAGMENT_SHADER) << std::endl;
+	_shaderHandleRenderMesh.prepareProgram();
+
+
+}
+
+
 void GLWidgetVirtualView::initializeGL()
 {
 	glewInit();	// Initialize glew
@@ -285,9 +352,8 @@ void GLWidgetVirtualView::initializeGL()
 		// tex coord
 	0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0};
 	initializeVBO_VAO_DisplayLayerTexture(verticesQuadWithTexCoord, _displayLayerTextureVBOHandle, _displayLayerTextureVAOHandle);
-	initializeRenderVBO_VAO(_renderVertexBufferHandle, _renderVertexArrayObjectHandle);
-
-	printOpenGLError();
+	//initializeRenderVBO_VAO(_renderVertexBufferHandle, _renderVertexArrayObjectHandle);
+	prepare3DPointsShader();
 
 	// register the 3d texture so that CUDA can use it
 	size_t free, total; float mb = 1<<20;
@@ -523,12 +589,73 @@ void GLWidgetVirtualView::createDistTable()
 
 }
 
+void GLWidgetVirtualView::generate3DPoints(int refIndex, int refIndex2)
+{
+	// Disable rendering
+	glEnable(GL_RASTERIZER_DISCARD);
+// Bind the feedback object for the buffers to be drawn next
+
+	glUseProgram(_shaderHandleGenerate3DPoints.getProgramIndex());
+	_shaderHandleGenerate3DPoints.setUniform("step", &_step);
+
+	glm::mat4x4 invMVP1 = glm::inverse( (**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix);
+	glm::mat4x4 invMVP2 = glm::inverse((**_allIms)[refIndex2]._projMatrix * (**_allIms)[refIndex2]._modelViewMatrix);
+	float invMVP[16*2];
+	std::copy( &(invMVP1[0][0]), &(invMVP1[0][0]) + 16, invMVP);
+	std::copy( &(invMVP2[0][0]), &(invMVP2[0][0]) + 16, invMVP + 16);
+
+	/*glm::vec2 pos2D = glm::vec2(2.5/_psParam._virtualWidth, 0.5/_psParam._virtualHeight);
+	glm::vec4 gl_Position = invMVP * glm::vec4(pos2D *2.0f - 1.0f, 0, 1.0f);
+	gl_Position = gl_Position/gl_Position.w;*/
+
+	_shaderHandleGenerate3DPoints.setUniform("inverseMVP[0]", &invMVP);
+	//_shaderHandleGenerate3DPoints.setUniform("inverseMVP2", &invMVP2[0][0]);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, _depthmap1._textureID);
+	int id = 0; 
+	_shaderHandleGenerate3DPoints.setUniform("depthTex0", &id);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, _depthmap2._textureID);
+	id = 1;
+	_shaderHandleGenerate3DPoints.setUniform("depthTex1", &id);
+
+
+	glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, _feedback);
+// Draw points from input buffer with transform feedback
+	GLuint query;
+	glGenQueries(1, &query);
+	glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, query);
+
+	glBeginTransformFeedback(GL_POINTS);
+		glBindVertexArray(_depthPointsVAO_input);
+		glDrawArrays(GL_POINTS, 0, _psParam._virtualWidth * _psParam._virtualHeight);
+	glEndTransformFeedback();
+	
+	glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+	GLuint primWritten;
+	glGetQueryObjectuiv(query, GL_QUERY_RESULT, &primWritten);
+//	printf("Primitives written: %d\n", primWritten);
+//  
+
+	/*int size = _psParam._virtualWidth * _psParam._virtualHeight * 4;
+	float *data = new float[size];
+	glBindBuffer(GL_ARRAY_BUFFER, _depthPointsVBO_output);
+	glGetBufferSubData(GL_ARRAY_BUFFER, 0, size * sizeof(float), data);*/
+
+
+	printOpenGLError();
+	glDisable(GL_RASTERIZER_DISCARD);
+	
+}
+
 void GLWidgetVirtualView::paintGL()
 {
-	_totalTime += _t.restart();
-	 ++_numOfFrame;
-	 if(_numOfFrame % 50 == 0)
-	 std::cout << "frame rate is: " <<  static_cast<float>(_numOfFrame) / _totalTime * 1000 << " Hz"<< std::endl;
+	//_totalTime += _t.restart();
+	// ++_numOfFrame;
+	// if(_numOfFrame % 50 == 0)
+	// std::cout << "frame rate is: " <<  static_cast<float>(_numOfFrame) / _totalTime * 1000 << " Hz"<< std::endl;
 
 	// ***** maybe no depth buffer is needed in first pass
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 	
@@ -608,13 +735,13 @@ void GLWidgetVirtualView::paintGL()
 		if(ref == 0)
 		{
 			doCudaGetDepth(_cost3D_CUDAArray, _depthmap1_CUDAArray);
-			//std::cout<< "the reference camera index: " << refIndex << std::endl;
+			std::cout<< "the nearest reference camera index: " << refIndex << std::endl;
 			//std::cout<< "cameras used for stereo: " << _distTable[2*refIndex + 0] << " and " << _distTable[2*refIndex + 1] << std::endl;
 		}
 		else
 		{
-			//doCudaGetDepth(_cost3D_CUDAArray, _depthmap2_CUDAArray);
-			//std::cout<< "the reference camera index: " << refIndex << std::endl;
+			doCudaGetDepth(_cost3D_CUDAArray, _depthmap2_CUDAArray);
+			std::cout<< "the 2nd nearest reference camera index: " << refIndex << std::endl;
 			//std::cout<< "cameras used for stereo: " << _distTable[2*refIndex + 0] << " and " << _distTable[2*refIndex + 1] << std::endl;
 		}
 	}
@@ -628,10 +755,21 @@ void GLWidgetVirtualView::paintGL()
 	// --------------------------
 	if(_display_Color_Depth)
 	{
-	glEnable(GL_DEPTH_TEST);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 	
-	renderUsingDepth(nearCamIndex[0], nearCamIndex[1]);
-	glDisable(GL_DEPTH_TEST);
+		//glEnable(GL_RASTERIZER_DISCARD);
+		//glDisable(GL_RASTERIZER_DISCARD);
+		/*glEnable(GL_DEPTH_TEST);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 	
+		renderUsingDepth(nearCamIndex[0], nearCamIndex[1]);
+		glDisable(GL_DEPTH_TEST);*/
+
+		
+		generate3DPoints(nearCamIndex[0], nearCamIndex[1]);
+		printOpenGLError();
+		glEnable(GL_DEPTH_TEST);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 	
+		renderMesh(nearCamIndex[0], nearCamIndex[1]);
+		glDisable(GL_DEPTH_TEST);
+
 	}
 	else
 		displayImage(_syncView._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
@@ -640,6 +778,39 @@ void GLWidgetVirtualView::paintGL()
 	
 	//emit updateGL_SIGNAL(); 
 	// that's it!!!	
+}
+
+void GLWidgetVirtualView::renderMesh(int refIndex, int refIndex2)
+{
+	glUseProgram(_shaderHandleRenderMesh.getProgramIndex());
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex]->_tex._textureID);
+	int id = 0;
+	_shaderHandleRenderMesh.setUniform("textures0", &id);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex2]->_tex._textureID);
+	id = 1;
+	_shaderHandleRenderMesh.setUniform("textures1", &id);
+
+//--------------------------------------------
+	_virtualImg.setProjMatrix(0.1f, 1000.0f);
+	glm::mat4x4 viewpointMVP = _virtualImg._projMatrix * _virtualImg._modelViewMatrix;
+	_shaderHandleRenderMesh.setUniform("viewpointMVP", &viewpointMVP[0][0]);
+//---------------------
+	glm::mat4 projScaleTrans = glm::translate(glm::vec3(0.5f)) * glm::scale(glm::vec3(0.5f));
+	glm::mat4x4 textureMVP =  projScaleTrans * (**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix;
+	_shaderHandleRenderMesh.setUniform("textureMVP", &textureMVP[0][0]);
+
+	
+	glm::mat4x4 textureMVP1 =  projScaleTrans * (**_allIms)[refIndex2]._projMatrix * (**_allIms)[refIndex2]._modelViewMatrix;
+	_shaderHandleRenderMesh.setUniform("textureMVP1", &textureMVP1[0][0]);
+//---------------------	
+	glBindVertexArray(_depthPointsVAO_output);
+	glDrawArrays(GL_QUADS, 0, _psParam._virtualWidth * _psParam._virtualHeight*4 * 2 ); // quad has 4 points, 2 is two depthmaps 
+	printOpenGLError();
+
 }
 
 void GLWidgetVirtualView::renderUsingDepth(int refIndex, int refIndex1)
@@ -659,7 +830,7 @@ void GLWidgetVirtualView::renderUsingDepth(int refIndex, int refIndex1)
 	id = 1;
 	_shaderHandleRenderScene.setUniform("depthTex1", &id);*/
 	
-	_virtualImg.setProjMatrix(0.1, 1000);
+	_virtualImg.setProjMatrix(0.1f, 1000.0f);
 	
 
 	glm::mat4x4 transform =  _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix);
@@ -679,8 +850,6 @@ void GLWidgetVirtualView::renderUsingDepth(int refIndex, int refIndex1)
 	glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex1]->_tex._textureID);
 	id = 3;
 	_shaderHandleRenderScene.setUniform("textures", &id);*/
-
-
 
 	glBindVertexArray(_renderVertexArrayObjectHandle);
 	printOpenGLError();

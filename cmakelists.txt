@@ -61,6 +61,8 @@ cuda_add_executable(viewSyn
 					  src/utility.h 	src/utility.cpp
 					  src/GaussianBlurCUDA.h src/GaussianBlurCUDA.cu
 					  shader/renderScene.vert shader/renderScene.geom shader/renderScene.frag 
+					  shader/generate3DPoints.vert shader/generate3DPoints.geom
+					  shader/renderMesh.vert shader/renderMesh.frag
                       ${MOC_OUTFILES}
                       ${UI_OUTFILES}					  
               )
