@@ -131,7 +131,7 @@ private:
 	void findNearestCam(int * nearCamIndex, glm::vec3 fixedPos, int notIncluded = -1);
 	void createDistTable();
 	int _distTable[16];
-	void doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray);
+	void doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray, cudaArray* syncView_CUDAArray);
 	//void renderUsingDepth(int refIndex);
 	void renderUsingDepth(int refIndex, int refIndex1);
 
