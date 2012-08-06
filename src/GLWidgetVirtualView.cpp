@@ -12,6 +12,7 @@
 #include <imdebuggl.h>
 #include <fstream>
 #include "GaussianBlurCUDA.h"
+#include <glm/gtc/quaternion.hpp>
 
 extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
 extern void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmap_CUDAArray, cudaArray *depthmapView_CUDAArray,
@@ -38,7 +39,7 @@ int GLWidgetVirtualView:: printOglError(char *file, int line)
 
 GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidget *sharedWidget,
 	const QList<GLWidget*>& imageQGLWidgets): 
-	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[4]),
+	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[4], 4),
 		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _fboRenderImage(0),_depthTextureForRenderImage(0),
 		_psVertexBufferHandle(0), 
 		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
@@ -47,8 +48,11 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 		_renderVertexArrayObjectHandle(0), _renderVertexBufferHandle(0),
 		_display_Color_Depth(true),
 		_depthmap1((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
-		_depthmap2((**allIms)[0]._image.cols, (**allIms)[0]._image.rows)
+		_depthmap2((**allIms)[0]._image.cols, (**allIms)[0]._image.rows),
+
+		_weightOfView(1.0f)
 { 
+	
 	int width, height;
 	if( (*allIms)->size() <1){	
 		width = 200, height = 100;
@@ -76,6 +80,9 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	_warpingFragFileName = filePath + "\\warping.frag";
 	//writeGeometryShaderFile(_warpingGeoFileName);
 	//writeFragmentShaderFile(_warpingFragFileName);
+
+	_nearestCamIndex = _virtualImg._camIndex + 1;
+	_nearestCamIndex = _nearestCamIndex >= _psParam._numOfCameras? (_nearestCamIndex-1):_nearestCamIndex;
 }
 
 void GLWidgetVirtualView::psFarPlaneChanged(double farPlanePos)
@@ -469,6 +476,9 @@ void GLWidgetVirtualView::displayLayedTexture(GLuint &texture1, GLuint &texture2
 	glBindTexture(GL_TEXTURE_2D, texture2);
 	_shaderHandleDisplayLayerTexture.setUniform("texs1",&textureUint);
 
+	_shaderHandleDisplayLayerTexture.setUniform("weight", _weightOfView);
+	_shaderHandleDisplayLayerTexture.setUniform("texSize", 1.0f/ static_cast<float>(_psParam._virtualWidth));
+	//std::cout<<_weightOfView << std::endl;
 	
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -572,8 +582,10 @@ void GLWidgetVirtualView::paintGL()
 	
 	//find the nearest two cameras.
 	int nearCamIndex[2] = {0};
-	findNearestCam(nearCamIndex, _virtualImg._glmC);
-	
+	//findNearestCam(nearCamIndex, _virtualImg._glmC);
+	nearCamIndex[0] = _virtualImg._camIndex;
+	nearCamIndex[1] = _nearestCamIndex;
+
 	// set up the uniforms: images, transformation matrix, etc...
 	glUseProgram(_shaderHandle.getProgramIndex());
 	_step = 2.0f / static_cast<float>(_psParam._numOfPlanes + 1);
@@ -885,7 +897,52 @@ void GLWidgetVirtualView::mouseMoveEvent(QMouseEvent *event)
 		glm::vec4 dir = inverseVirtualModelViewMatrix * glm::vec4(rangeX, -rangeY, 0.0f, 0.0f) * glm::distance(_virtualImg._glmC, _objCenterPos);
 		//glm::vec4 dir = inverseVirtualModelViewMatrix * glm::vec4(rangeX, -rangeY, 1.0f, 0.0f);
 		//dir = dir * 100.0f;
-		_virtualImg._glmC = _virtualImg._glmC + glm::vec3(dir.x, dir.y, dir.z);
+		glm::vec3 normalizedDir = glm::vec3(dir.x, dir.y, dir.z);
+
+		//_virtualImg._glmC = _virtualImg._glmC + glm::vec3(dir.x, dir.y, dir.z);
+		if(_weightOfView <= 0.0f)
+		{
+			_virtualImg._camIndex = _nearestCamIndex;
+			_weightOfView = 1.0f;
+		}
+		if(_weightOfView >= 1.0f)
+		{
+			_weightOfView = 1.0f;
+			// then based on the angle of dir and camera center vector to determine which camera to use
+			
+			if(_virtualImg._camIndex == 0 )
+				_nearestCamIndex = 1;
+			else if(_virtualImg._camIndex == _psParam._numOfCameras -1)
+				_nearestCamIndex = _virtualImg._camIndex - 1;
+			else 
+			{
+				int nearestCamIndex1 = _virtualImg._camIndex + 1;
+				int nearestCamIndex2 = _virtualImg._camIndex - 1;
+				if( glm::dot( (**_allIms)[nearestCamIndex1]._glmC - (**_allIms)[_virtualImg._camIndex]._glmC, normalizedDir) > 0 )
+					_nearestCamIndex = nearestCamIndex1;
+				else
+					_nearestCamIndex = nearestCamIndex2;
+			}
+			// calculate the nearest left, and nearest right camera
+		}
+		if( glm::dot( (**_allIms)[_nearestCamIndex]._glmC - (**_allIms)[_virtualImg._camIndex]._glmC, normalizedDir) > 0 )
+		{
+			_weightOfView -= 0.1f;
+			_weightOfView = (_weightOfView < 0)? 0.0f : _weightOfView;
+		}
+		else
+		{
+			_weightOfView += 0.1f;
+			_weightOfView = (_weightOfView > 1)? 1.0f : _weightOfView;
+		}
+		// _weightOfView and the cameras used for interpolation is ready, then do the interpolation. Use dir to update _weightOfView
+		_virtualImg._glmC = glm::mix((**_allIms)[_nearestCamIndex]._glmC, (**_allIms)[_virtualImg._camIndex]._glmC, _weightOfView );
+
+		//	quat_cast (detail::tmat3x3< T > const &x)
+		glm::quat qt = 	glm::mix(glm::quat_cast((**_allIms)[_nearestCamIndex]._glmR), glm::quat_cast((**_allIms)[_virtualImg._camIndex]._glmR) , _weightOfView);
+		_virtualImg._glmR = glm::mat3_cast(qt);
+ 	//Returns a SLERP interpolated quaternion of x and y according a. 
+
 		_virtualImg.setModelViewMatrix();
 		_virtualImg.setProjMatrix();
 		_virtualImg.calcPlaneCoords();

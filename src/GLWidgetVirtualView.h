@@ -150,7 +150,9 @@ private:
 	float _totalTime;
 	int _numOfFrame;
 
-	
+// for rotation and translation
+	float _weightOfView;
+	int _nearestCamIndex;
 
 
 signals:

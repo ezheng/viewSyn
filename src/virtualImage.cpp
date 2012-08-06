@@ -1,6 +1,6 @@
 #include "virtualImage.h"
 #include <iostream>
-virtualImage::virtualImage(const image& im)
+virtualImage::virtualImage(const image& im, int camIndex)
 {	
 	_glmR = im._glmR;
 	_glmC = im._glmC;
@@ -13,6 +13,9 @@ virtualImage::virtualImage(const image& im)
 	_projMatrix = im._projMatrix;	
 
 	_image = im._image;
+
+	_camIndex = camIndex;
+	
 }
 
 

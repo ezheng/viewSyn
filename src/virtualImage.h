@@ -35,6 +35,8 @@ public:
 
 	float _near;
 	float _far;
+
+	int _camIndex;
 //-------------------
 	std::string _imageName;
 	cv::Mat _image;
@@ -43,7 +45,7 @@ public:
 	void setProjMatrix(float nearDist, float farDist);
 	void calcPlaneCoords();
 	
-	virtualImage( const image& im);
+	virtualImage( const image& im, int camIndex);
 	virtualImage(){}
 
 private:
