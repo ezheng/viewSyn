@@ -39,8 +39,11 @@ int GLWidgetVirtualView:: printOglError(char *file, int line)
 GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidget *sharedWidget,
 	const QList<GLWidget*>& imageQGLWidgets): 
 	_allIms(allIms), QGLWidget((QWidget*)NULL, sharedWidget), _virtualImg((**allIms)[4]),
-		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _psVertexBufferHandle(0), 
+		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _fboRenderImage(0),_depthTextureForRenderImage(0),
+		_psVertexBufferHandle(0), 
 		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
+		_renderedImage1((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
+		_renderedImage2((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
 		_renderVertexArrayObjectHandle(0), _renderVertexBufferHandle(0),
 		_display_Color_Depth(true),
 		_depthmap1((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
@@ -215,6 +218,10 @@ void GLWidgetVirtualView::initializeGL()
 	CUDA_SAFE_CALL(cudaGLSetGLDevice(0));
 	// create an empty 2d texture for view synthesis
 	_syncView.create(NULL);	// just allocate memory, no image data is uploaded
+	_renderedImage1.create(NULL);
+	_renderedImage2.create(NULL);
+	initDepthTextureForRenderImage(_depthTextureForRenderImage);
+
 	//_depthmapView.create(NULL);
 	printOpenGLError();
 	_depthmap1.createGL_R32UI();
@@ -260,12 +267,17 @@ void GLWidgetVirtualView::initializeGL()
 	//_fbo->AttachTexture(GL_TEXTURE_3D, _color3DTexID, GL_COLOR_ATTACHMENT1, 0, -1); // -1 means no specific layer is specified, 0 is the mipmap level
 	//GLenum drawBufs[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
 	//glDrawBuffers(2, drawBufs);
-
 	_fbo->IsValid(std::cout);
 	_fbo->Disable();
 
+	_fboRenderImage = new FramebufferObject();
+	_fboRenderImage->Bind();
+	_fboRenderImage->AttachTexture(GL_TEXTURE_2D, _depthTextureForRenderImage, GL_DEPTH_ATTACHMENT);
+	_fboRenderImage->IsValid(std::cout);
+	_fboRenderImage->Disable();
+
 	//------------------------
-	glClearColor(1.0, 0.5, 0.0, 1.0);
+	glClearColor(1.0, 1.0, 1.0, 0.0);
 	glDisable(GL_DEPTH_TEST);	// do not need depth buffer
 	glEnable(GL_TEXTURE_2D);
 	printOpenGLError();
@@ -315,6 +327,20 @@ void GLWidgetVirtualView::initializeGL()
 	_totalTime = 0;
 	_numOfFrame = 0;
 	QObject::connect(this, SIGNAL(updateGL_SIGNAL()), this, SLOT(updateGL()), Qt::QueuedConnection);
+}
+
+void GLWidgetVirtualView::initDepthTextureForRenderImage(GLuint &depthTexture)
+{
+	glGenTextures(1, &depthTexture);	
+	glBindTexture(GL_TEXTURE_2D, depthTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	printOpenGLError();
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F,	_psParam._virtualWidth, _psParam._virtualHeight, 0, GL_DEPTH_COMPONENT,GL_UNSIGNED_BYTE, NULL);
+	printOpenGLError();
+	
 }
 
 void GLWidgetVirtualView:: displayImage(GLuint texture, int imageWidth, int imageHeight)
@@ -424,20 +450,25 @@ void GLWidgetVirtualView::initializeVBO_VAO_DisplayLayerTexture(float *vertices,
 		GL_FLOAT, GL_FALSE, 0, (void *)48);	// 12 * sizeof(float)
 }
 
-void GLWidgetVirtualView::displayLayedTexture(GLuint &texture)
+void GLWidgetVirtualView::displayLayedTexture(GLuint &texture1, GLuint &texture2)
 {
-	glClearColor(0.75 ,0.0,0,1);
+	//glClearColor(1 ,0.5,0,0);
 	glClear(GL_COLOR_BUFFER_BIT); 
 	glUseProgram(_shaderHandleDisplayLayerTexture.getProgramIndex());
-	
+	glDisable(GL_DEPTH_TEST);
+
 	int textureUint = 0;
 	glActiveTexture(GL_TEXTURE0 + textureUint);
-	glBindTexture(GL_TEXTURE_3D, texture);
+	glBindTexture(GL_TEXTURE_2D, texture1);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);	
-	_shaderHandleDisplayLayerTexture.setUniform("numOfLayers", static_cast<int>(_psParam._numOfPlanes));
-	
-	_shaderHandleDisplayLayerTexture.setUniform("texs",&textureUint);
+	//_shaderHandleDisplayLayerTexture.setUniform("numOfLayers", static_cast<int>(_psParam._numOfPlanes));
+	_shaderHandleDisplayLayerTexture.setUniform("texs0",&textureUint);
 	printOpenGLError();	
+	textureUint ++;
+	glActiveTexture(GL_TEXTURE0 + textureUint);
+	glBindTexture(GL_TEXTURE_2D, texture2);
+	_shaderHandleDisplayLayerTexture.setUniform("texs1",&textureUint);
+
 	
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -466,12 +497,15 @@ void GLWidgetVirtualView::displayLayedTexture(GLuint &texture)
     glPopMatrix();
 	glMatrixMode(GL_MODELVIEW);
 	glPopMatrix();
+	glEnable(GL_DEPTH_TEST);
 }
 
 GLWidgetVirtualView::~GLWidgetVirtualView()
 {
 	if(_fbo != NULL)
 		delete _fbo;
+	if(_fboRenderImage != NULL)
+		delete _fboRenderImage;
 }
 
 void GLWidgetVirtualView::resizeGL(int w, int h)
@@ -668,43 +702,55 @@ void GLWidgetVirtualView::renderUsingDepth(int refIndex, int refIndex1)
 	glUseProgram(_shaderHandleRenderScene.getProgramIndex());
 	_shaderHandleRenderScene.setUniform("step", &_step);
 
-	glActiveTexture(GL_TEXTURE4); 
-	glBindTexture(GL_TEXTURE_2D, _depthmap1._textureID);
-	int id = 4;
-	_shaderHandleRenderScene.setUniform("depthTex0", &id);
-	//int refIndex = nearCamIndex[0];
-
-	/*glActiveTexture(GL_TEXTURE1); 
-	glBindTexture(GL_TEXTURE_2D, _depthmap2._textureID);
-	id = 1;
-	_shaderHandleRenderScene.setUniform("depthTex1", &id);*/
+	for(int i = 0; i< 2; i++)
+	{
+		glActiveTexture(GL_TEXTURE0); 
+		if(i == 0)
+			glBindTexture(GL_TEXTURE_2D, _depthmap1._textureID);
+		else 
+			glBindTexture(GL_TEXTURE_2D, _depthmap2._textureID);
+		int id = 0;
+		_shaderHandleRenderScene.setUniform("depthTex0", &id);
 	
 	//_virtualImg.setProjMatrix(0.1, 1000);
-	
+		glm::mat4x4 transform;
+		if( i == 0)
+			transform = _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix);
+		else
+			transform = _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex1]._projMatrix * (**_allIms)[refIndex1]._modelViewMatrix);
 
-	glm::mat4x4 transform =  _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex]._projMatrix * (**_allIms)[refIndex]._modelViewMatrix);
-	_shaderHandleRenderScene.setUniform("transform0", &transform[0][0]);
+		_shaderHandleRenderScene.setUniform("transform0", &transform[0][0]);
 	
-
-	/*glm::mat4x4 transform1 =  _virtualImg._projMatrix * _virtualImg._modelViewMatrix * glm::inverse( (**_allIms)[refIndex1]._projMatrix * (**_allIms)[refIndex1]._modelViewMatrix);
-	_shaderHandleRenderScene.setUniform("transform1", &transform1[0][0]);*/
-	
-
-	glActiveTexture(GL_TEXTURE5);
-	glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex]->_tex._textureID);
-	id = 5;
-	_shaderHandleRenderScene.setUniform("textures0", &id);
+		glActiveTexture(GL_TEXTURE1);
+		if( i == 0)
+			glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex]->_tex._textureID);
+		else
+			glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex1]->_tex._textureID);
+		id = 1;
+		_shaderHandleRenderScene.setUniform("textures0", &id);
 
 	/*glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_2D, _imageQGLWidgets[refIndex1]->_tex._textureID);
 	id = 3;
 	_shaderHandleRenderScene.setUniform("textures", &id);*/
 
+		_fboRenderImage->Bind();
+		if( i == 0)
+			_fboRenderImage->AttachTexture(GL_TEXTURE_2D, _renderedImage1._textureID, GL_COLOR_ATTACHMENT0);
+		else
+			_fboRenderImage->AttachTexture(GL_TEXTURE_2D, _renderedImage2._textureID, GL_COLOR_ATTACHMENT0);
 
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);  
+		glBindVertexArray(_renderVertexArrayObjectHandle);
+		printOpenGLError();
+		glDrawArrays(GL_TRIANGLES, 0, _numOfVertices ); 
+		_fboRenderImage->Disable();
+	}
+	
+	displayLayedTexture(_renderedImage1._textureID, _renderedImage2._textureID);
+	//displayImage(_renderedImage1._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
+	
 
-	glBindVertexArray(_renderVertexArrayObjectHandle);
-	printOpenGLError();
-	glDrawArrays(GL_TRIANGLES, 0, _numOfVertices ); 
 }
 
 void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray, cudaArray* syncView_CUDAArray)

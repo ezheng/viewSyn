@@ -3,29 +3,20 @@
 layout(location = 0) out vec4 fragmentColor;
 in vec2 texCoordOut;
 
-uniform sampler3D texs;
-uniform int numOfLayers;
+uniform sampler2D texs0;
+uniform sampler2D texs1;
 
 
 
 void main()
 {
-	
-	fragmentColor = vec4(0,0,0,1.0);
-
-	float size = 0.2;	// determine number of textures per row
-	
-	float col = floor(texCoordOut.x / size);
-	float row = floor(texCoordOut.y / size);
-
-	float xOffset = texCoordOut.x - col * size;
-	float yOffset = texCoordOut.y - row * size;
-
-	float i = row * 5 + col;
-	float layer = (1.0f +  2.0f *  i) / (2* float(numOfLayers));
-
-	fragmentColor.xyz = fragmentColor.xyz + texture(texs, vec3(xOffset/size, yOffset/size , layer)).xyz;
-	//if(fragmentColor.x == 0 && fragmentColor.y == 0 && fragmentColor.z == 0)
-	//	fragmentColor = vec4(1.0,1.0f,1.0f, 1.0f);
+	vec4 color0 = texture(texs0, texCoordOut);
+	vec4 color1 = texture(texs1, texCoordOut);
+	if(color0.w == 0)
+		fragmentColor = color1;
+	else if(color1.w == 0)
+		fragmentColor = color0;
+	else
+		fragmentColor = (texture(texs0, texCoordOut) * 0.5 + texture(texs1, texCoordOut) * 0.5);
 
 }

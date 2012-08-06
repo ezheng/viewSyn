@@ -85,12 +85,18 @@ private:
 	GLuint _displayLayerTextureVAOHandle;
 	
 	FramebufferObject *_fbo;
+	FramebufferObject *_fboRenderImage;
+	GLuint _depthTextureForRenderImage;
+	void initDepthTextureForRenderImage(GLuint &depthTexture);
+
+
 	void initTexture3D(GLuint &RTT3D, int imageWidth, int imageHeight, int numOfLayers, bool isColorTexture);
 	void initializeVBO_VAO(float *vertices, int numOfPrimitive, GLuint &vboObject, GLuint &vaoObject);
 	void initializeRenderVBO_VAO(GLuint &vboObject, GLuint &vaoObject);
 
 	void initializeVBO_VAO_DisplayLayerTexture(float *vertices, GLuint &vboObject, GLuint &vaoObject);
-	void displayLayedTexture(GLuint &texture);
+	//void displayLayedTexture(GLuint &texture);
+	void displayLayedTexture(GLuint &texture1, GLuint &texture2);
 	int printOglError(char *file, int line);
 
 	struct cudaGraphicsResource *_cost3D_CUDAResource;
@@ -117,6 +123,10 @@ private:
 	texture2D _depthmap1;
 	texture2D _depthmap2;
 
+	texture2D _renderedImage1;
+	texture2D _renderedImage2;
+
+
 	bool _display_Color_Depth;
 
 	void displayImage(GLuint texture, int imageWidth, int imageHeight);
@@ -139,6 +149,10 @@ private:
 	QTime _t;
 	float _totalTime;
 	int _numOfFrame;
+
+	
+
+
 signals:
 	void updateGL_SIGNAL();
 };
