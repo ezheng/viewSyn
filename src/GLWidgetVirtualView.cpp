@@ -231,9 +231,11 @@ void GLWidgetVirtualView::initializeGL()
 
 	//_depthmapView.create(NULL);
 	printOpenGLError();
-	_depthmap1.createGL_R32UI();
+	//_depthmap1.createGL_R32UI();
+	_depthmap1.createGL_R32I();
 	printOpenGLError();
-	_depthmap2.createGL_R32UI();
+	//_depthmap2.createGL_R32UI();
+	_depthmap2.createGL_R32I();
 	printOpenGLError();
 	//--------------------------------------------------------
 	// set up shader
@@ -780,7 +782,8 @@ void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray*
 	}
 	launchCudaGetDepthMap(cost3D_CUDAArray, depthmap_CUDAArray,syncView_CUDAArray, width, height, _psParam._numOfPlanes, _psParam._near, _psParam._far, _step);
 
-	
+	// run high pass filter to get reliable depth. Unreliable pixel is set to -1.
+
 
 }
 

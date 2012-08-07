@@ -57,6 +57,23 @@ void texture2D::createGL_R32UI()
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void texture2D::createGL_R32I()
+{
+	if(_textureID != 0)
+		glDeleteTextures(1, &_textureID);
+
+	glGenTextures(1, &_textureID);
+	glBindTexture(GL_TEXTURE_2D, _textureID);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR  );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, _width, _height, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);	
+
+}
+
 void texture2D::upLoad(const GLubyte *pPixels, int width, int height)
 {	
 	if(_width == width && _height == height && _textureID != 0)
