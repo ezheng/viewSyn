@@ -27,7 +27,6 @@ surface<void, cudaSurfaceType3D> cost_Surface3D;
 
 surface<void, cudaSurfaceType2D> temp_Surface2D;
 surface<void, cudaSurfaceType2D> depthmap2D_Surface2D;
-surface<void, cudaSurfaceType2D> colorImage_Surface2D;
 surface<void, cudaSurfaceType2D> depthmap2DBackup_Surface2D;
 
 texture<uchar4, cudaTextureType2D, cudaReadModeElementType> colorImageTex;
@@ -297,22 +296,15 @@ __device__ void findPosLeft(int x, int y, float *weight, int *planeIdx, int half
 	uchar4 centerColor = tex2D(colorImageTex, x + 0.5, y + 0.5);
 	for(int i = 1; i <= halfPatchSize; i++)
 	{
-		//uchar4 centerColor;
-		//surf2Dread( &centerColor, colorImage_Surface2D, x * 4, y, cudaBoundaryModeClamp);
-		//
-
 		int newX = x - i;
 		if(newX < 0)
 			continue;
 		else
 		{	
-		//	
 			surf2Dread( planeIdx, depthmap2DBackup_Surface2D, newX * 4, y, cudaBoundaryModeClamp);
 			if((*planeIdx) != -1)
 			{
 				//calculate weight and then return
-			//	uchar4 color;
-			//	surf2Dread( &color, colorImage_Surface2D, newX * 4, y, cudaBoundaryModeClamp);
 				uchar4 color = tex2D(colorImageTex, newX + 0.5, y + 0.5);
 
 				*weight = (255.0f - abs(float(color.x) - float(centerColor.x)))/255.0f; 
@@ -332,9 +324,6 @@ __device__ void findPosRight(int x, int y, float *weight, int *planeIdx, int hal
 	uchar4 centerColor = tex2D(colorImageTex, x + 0.5, y + 0.5);
 	for(int i = 1; i <= halfPatchSize; i++)
 	{
-		//uchar4 centerColor;
-		//surf2Dread( &centerColor, colorImage_Surface2D, x * 4, y, cudaBoundaryModeTrap);
-		//
 		int newX = x + i;
 		if(newX >= imageW)
 			continue;
@@ -343,9 +332,6 @@ __device__ void findPosRight(int x, int y, float *weight, int *planeIdx, int hal
 			surf2Dread( planeIdx, depthmap2DBackup_Surface2D, newX * 4, y, cudaBoundaryModeTrap);
 			if(*planeIdx != -1)
 			{
-				//calculate weight and then return
-		//		uchar4 color;
-		//		surf2Dread( &color, colorImage_Surface2D, newX * 4, y, cudaBoundaryModeTrap);
 				uchar4 color = tex2D(colorImageTex, newX + 0.5, y + 0.5);
 				*weight = (255.0f - abs(float(color.x) - float(centerColor.x)))/255.0f; 
 				*weight *= (255.0f - abs(float(color.y) - float(centerColor.y)))/255.0f; 
@@ -363,9 +349,6 @@ __device__ void findPosUp(int x, int y, float *weight, int *planeIdx, int halfPa
 	uchar4 centerColor = tex2D(colorImageTex, x + 0.5, y + 0.5);
 	for(int i = 1; i <= halfPatchSize; i++)
 	{
-		//uchar4 centerColor;
-		//surf2Dread( &centerColor, colorImage_Surface2D, x * 4, y, cudaBoundaryModeTrap);
-		//
 		int newY = y - i;
 		if(newY < 0)
 			continue;
@@ -376,8 +359,6 @@ __device__ void findPosUp(int x, int y, float *weight, int *planeIdx, int halfPa
 			if(*planeIdx != -1)
 			{
 				//calculate weight and then return
-				//uchar4 color;
-				//surf2Dread( &color, colorImage_Surface2D, x * 4, newY, cudaBoundaryModeTrap);
 				uchar4 color = tex2D(colorImageTex, x + 0.5, newY + 0.5);
 				*weight = (255.0f - abs(float(color.x) - float(centerColor.x)))/255.0f; 
 				*weight *= (255.0f - abs(float(color.y) - float(centerColor.y)))/255.0f; 
@@ -395,9 +376,6 @@ __device__ void findPosDown(int x, int y, float *weight, int *planeIdx, int half
 	uchar4 centerColor = tex2D(colorImageTex, x + 0.5, y + 0.5);
 	for(int i = 1; i <= halfPatchSize; i++)
 	{
-		//uchar4 centerColor;
-		//surf2Dread( &centerColor, colorImage_Surface2D, x * 4, y, cudaBoundaryModeTrap);
-		//
 		int newY = y + i;
 		if(newY >= imageH)
 			continue;
@@ -406,9 +384,6 @@ __device__ void findPosDown(int x, int y, float *weight, int *planeIdx, int half
 			surf2Dread( planeIdx, depthmap2DBackup_Surface2D, x * 4, newY, cudaBoundaryModeTrap);
 			if(*planeIdx != -1)
 			{
-				//calculate weight and then return
-			//	uchar4 color;
-			//	surf2Dread( &color, colorImage_Surface2D, x * 4, newY, cudaBoundaryModeTrap);
 				uchar4 color = tex2D(colorImageTex, x + 0.5, newY + 0.5);
 				*weight = (255.0f - abs(float(color.x) - float(centerColor.x)))/255.0f; 
 				*weight *= (255.0f - abs(float(color.y) - float(centerColor.y)))/255.0f; 
@@ -435,7 +410,7 @@ __global__ void fillHolesDepth_kernel(int imageW, int imageH)
 		{
 			// search in depthmap2DBackup_Surface2D and colorImage_Surface2D. 
 			float weight[4]= {0}; int planeIndex[4] = {0};
-			int halfPatchSize = 10;
+			int halfPatchSize = 20;
 			findPosLeft(ix, iy, &(weight[0]), &(planeIndex[0]), halfPatchSize);
 			findPosRight(ix, iy, &(weight[1]), &(planeIndex[1]), halfPatchSize, imageW);
 			findPosUp(ix, iy, &(weight[2]), &(planeIndex[2]), halfPatchSize);
@@ -443,7 +418,6 @@ __global__ void fillHolesDepth_kernel(int imageW, int imageH)
 			////	// do interpolation, then round up
 			float sumWeight = 0.0f;
 			float newplaneIdx = 0.0f;
-			
 			for(int i = 0; i<4; i++)
 			{
 				sumWeight += weight[i];
@@ -454,19 +428,13 @@ __global__ void fillHolesDepth_kernel(int imageW, int imageH)
 			if(sumWeight == 0)
 			{
 				newPlaneIdx_int = -1;
-				//printf("no weight found");
 			}
 			else
 			{
 				newPlaneIdx_int = int((newplaneIdx/sumWeight + 0.5));
-				//printf(" sumWeight: %f, planeIdx: %i\n " , sumWeight, newPlaneIdx_int);
-				//newPlaneIdx_int = 120;
 			}
-		//	//printf(" new plane index: %i\n " , newPlaneIdx_int);
 			surf2Dwrite(newPlaneIdx_int, depthmap2D_Surface2D, ix * 4, iy, cudaBoundaryModeTrap);
-		//	
 		}
-		//surf2Dwrite(newPlaneIdx_int, depthmap2D_Surface2D, ix * 4, iy, cudaBoundaryModeClamp);
 	}
 }
 
@@ -504,8 +472,6 @@ void GaussianBlurCUDA::fillHolesDepth(cudaArray *depthmap_CUDAArray, cudaArray *
 
 	CUDA_SAFE_CALL(cudaBindSurfaceToArray(depthmap2DBackup_Surface2D, _depthmap2D_backup));
 	CUDA_SAFE_CALL(cudaBindSurfaceToArray(depthmap2D_Surface2D, depthmap_CUDAArray));
-	//CUDA_SAFE_CALL(cudaBindSurfaceToArray(colorImage_Surface2D, colorImage_CUDAArray));
-	
 	CUDA_SAFE_CALL(cudaBindTextureToArray(colorImageTex, colorImage_CUDAArray));
 	colorImageTex.normalized = false;
 

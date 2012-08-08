@@ -480,7 +480,8 @@ void GLWidgetVirtualView::displayLayedTexture(GLuint &texture1, GLuint &texture2
 	_shaderHandleDisplayLayerTexture.setUniform("texs1",&textureUint);
 
 	_shaderHandleDisplayLayerTexture.setUniform("weight", _weightOfView);
-	_shaderHandleDisplayLayerTexture.setUniform("texSize", 1.0f/ static_cast<float>(_psParam._virtualWidth));
+	_shaderHandleDisplayLayerTexture.setUniform("x_texSize", 1.0f/ static_cast<float>(_psParam._virtualWidth));
+	_shaderHandleDisplayLayerTexture.setUniform("y_texSize", 1.0f/ static_cast<float>(_psParam._virtualHeight));
 	//std::cout<<_weightOfView << std::endl;
 	
     glMatrixMode(GL_PROJECTION);
