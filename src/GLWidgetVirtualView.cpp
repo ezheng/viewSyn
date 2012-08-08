@@ -17,7 +17,7 @@
 extern void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes);
 extern void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmap_CUDAArray, cudaArray *depthmapView_CUDAArray,
 	int width, int height, unsigned int numOfCandidatePlanes, float near, float far, float step);
-
+extern void launchCudaWriteDepthIndexToImage(cudaArray *depthmap_CUDAArray, cudaArray *syncView_CUDAArray, int width, int height, float near, float far, float step);
 
 #define printOpenGLError() printOglError(__FILE__, __LINE__)
 #define CUDA_SAFE_CALL(err) _CUDA_SAFE_CALL(err, __FILE__, __LINE__)
@@ -329,6 +329,7 @@ void GLWidgetVirtualView::initializeGL()
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_depthmap2_CUDAResource, _depthmap2._textureID, 
 				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 2d surface texture
 
+	
 	createDistTable();
 	printOpenGLError();
 
@@ -659,30 +660,22 @@ void GLWidgetVirtualView::paintGL()
 		
 		if(ref == 0)
 		{
+			// register color image
+			
+
 			CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_cost3D_CUDAResource, 0));
 			CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_cost3D_CUDAArray, _cost3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
-			doCudaGetDepth(_cost3D_CUDAArray, _depthmap1_CUDAArray, _syncView_CUDAArray);
+			doCudaGetDepth(_cost3D_CUDAArray, _depthmap1_CUDAArray, _syncView_CUDAArray, nearCamIndex[ref]);
 			CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_cost3D_CUDAResource, 0));
 		
-		//	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_cost3D_CUDAResource, 0));
-		//	cudaDeviceSynchronize();
-			//std::cout<< "the reference camera index: " << refIndex << std::endl;
-			//std::cout<< "cameras used for stereo: " << _distTable[2*refIndex + 0] << " and " << _distTable[2*refIndex + 1] << std::endl;
-
-			//CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_syncView_CUDAResource, 0));
-			//imdebugTexImage(GL_TEXTURE_2D, _syncView._textureID, GL_RGBA);
-			//CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_syncView_CUDAResource, 0));
-			//CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_syncView_CUDAArray, _syncView_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
 
 		}
 		else if (ref == 1)
 		{
 			CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_cost3D_CUDAResource, 0));
 			CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_cost3D_CUDAArray, _cost3D_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
-			doCudaGetDepth(_cost3D_CUDAArray, _depthmap2_CUDAArray, _syncView_CUDAArray);
+			doCudaGetDepth(_cost3D_CUDAArray, _depthmap2_CUDAArray, _syncView_CUDAArray, nearCamIndex[ref]);
 			CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_cost3D_CUDAResource, 0));
-			//cudaDeviceSynchronize();
-			//imdebugTexImage(GL_TEXTURE_2D, _syncView._textureID, GL_RGBA                            );
 
 		}
 	}
@@ -767,7 +760,7 @@ void GLWidgetVirtualView::renderUsingDepth(int refIndex, int refIndex1)
 
 }
 
-void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray, cudaArray* syncView_CUDAArray)
+void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray, cudaArray* syncView_CUDAArray, int refIndex)
 {
 	int width = this->_psParam._virtualWidth;
 	int height = this->_psParam._virtualHeight;
@@ -784,6 +777,20 @@ void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray*
 
 	// run high pass filter to get reliable depth. Unreliable pixel is set to -1.
 
+	GaussianBlurCUDA gaussianF(width, height, 3.0f);
+	gaussianF.RemoveUnreliableDepth(depthmap_CUDAArray);
+	// filling holes:
+	
+	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_colorImage_CUDAResource, _imageQGLWidgets[refIndex]->_tex._textureID, 
+				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly ));// register the 3d texture
+	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_colorImage_CUDAResource, 0));
+	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_colorImage_CUDAArray, _colorImage_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
+	gaussianF.fillHolesDepth(depthmap_CUDAArray, _colorImage_CUDAArray);
+	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_colorImage_CUDAResource, 0));
+	CUDA_SAFE_CALL(cudaGraphicsUnregisterResource(_colorImage_CUDAResource));
+	
+	// write the depthmap for viewing purpose:
+	launchCudaWriteDepthIndexToImage( depthmap_CUDAArray,syncView_CUDAArray, width, height, _psParam._near, _psParam._far, _step);
 
 }
 

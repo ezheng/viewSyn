@@ -2,7 +2,7 @@
 //#include <stdlib.h>
 #include <string>
 #include "GaussianBlurCUDA.h"
-
+#include <iostream>
 
 
 //filter kernel width range (don't change these)
@@ -24,7 +24,13 @@ __device__ __constant__ float g_Kernel[KERNEL_MAX_WIDTH];
 
 //surface<void, cudaSurfaceType3D> colorTex_Surface3D;
 surface<void, cudaSurfaceType3D> cost_Surface3D;
+
 surface<void, cudaSurfaceType2D> temp_Surface2D;
+surface<void, cudaSurfaceType2D> depthmap2D_Surface2D;
+surface<void, cudaSurfaceType2D> colorImage_Surface2D;
+surface<void, cudaSurfaceType2D> depthmap2DBackup_Surface2D;
+
+texture<uchar4, cudaTextureType2D, cudaReadModeElementType> colorImageTex;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,34 +53,37 @@ template<int FR> __global__ void convolutionRowsKernel( int imageW, int imageH, 
 {
     const   int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const   int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
-   // const float  x = (float)ix + 0.5f;
-   // const float  y = (float)iy + 0.5f;
-	//if(ix >= imageW || iy >= imageH) return;
 	
 	if(ix <imageW && iy<imageH)
 	{
-		//uchar4 sum = make_uchar4(0, 0, 0, 0);
-		//uchar4 data;
 		float sum = 0;
 		float data;
-	  //  for(int k = -FR; k <= FR; k++){ sum += tex2D(tex32F0, x + (float)k, y) * g_Kernel[FR - k]; }
 #pragma unroll
 		for(int k = -FR; k <= FR; k++)
 		{
-			//sum += tex2D(tex32F0, x + (float)k, y) * g_Kernel[FR - k];	
-			//surf3Dread(&data, colorTex_Surface3D, 0, 0, layerId, cudaBoundaryModeClamp);
-			//surf3Dread(&data, colorTex_Surface3D, (ix + k) * 4, iy, layerId, cudaBoundaryModeClamp);			
 			surf3Dread(&data, cost_Surface3D, (ix + k) * 4, iy, layerId, cudaBoundaryModeClamp);			
-			//sum.x += data.x * g_Kernel[FR - k];
-			//sum.y += data.y * g_Kernel[FR - k];
-			//sum.z += data.z * g_Kernel[FR - k];
 			sum += (data * g_Kernel[FR - k]);
 		}
-		//if(ix==0 && iy<479 && layerId == 0)
-		//{printf("x: %u, y: %u, z: %u, w: %u\n", sum.x, sum.x, sum.z, sum.w);}
-		//sum.w = 255;
 		surf2Dwrite(sum, temp_Surface2D, ix * 4, iy, cudaBoundaryModeTrap);
 	} 
+}
+
+template<int FR> __global__ void convolutionRowsKernelRemoveNoise(int imageW, int imageH )
+{
+	 const   int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
+     const   int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+	 if(ix < imageW && iy < imageH)
+	 {
+		float sum = 0;
+		int planeIdx;
+		for(int k = -FR; k <= FR; k++)
+		{
+			surf2Dread( &planeIdx, depthmap2D_Surface2D, (ix + k) * 4, iy, cudaBoundaryModeClamp);
+			sum += ( float(planeIdx) * g_Kernel[FR - k]);
+		}
+		surf2Dwrite(sum, temp_Surface2D, ix * 4, iy, cudaBoundaryModeTrap);
+	 }
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,31 +96,50 @@ template<int FR> __global__ void convolutionColsKernel( int imageW, int imageH, 
 
 	if(ix <imageW && iy<imageH)
 	{
-		//uchar4 sum = make_uchar4(0, 0, 0, 0);
-		//uchar4 data;
 		float sum = 0;
 		float data;
-	  //for(int k = -FR; k <= FR; k++){ sum += tex2D(tex32F0, x, y + (float)k) * g_Kernel[FR - k]; }
 		for(int k = -FR; k <= FR; k++)
 		{
-			//sum += tex2D(tex32F0, x + (float)k, y) * g_Kernel[FR - k];
 			surf2Dread(&data, temp_Surface2D, ix * 4, iy + k, cudaBoundaryModeClamp);
 			sum += (data * g_Kernel[FR - k]);
-			//sum.x += data.x * g_Kernel[FR - k];
-			//sum.y += data.y * g_Kernel[FR - k];
-			//sum.z += data.z * g_Kernel[FR - k];
 		}
-		//sum.w = 255;
 		surf3Dwrite(sum, cost_Surface3D, ix * 4, iy, layerId, cudaBoundaryModeTrap);
 	}
 }
 
+template<int FR> __global__ void convolutionColsKernelRemoveNoise(int imageW, int imageH)
+{
+	const   int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
+    const   int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+
+	if(ix <imageW && iy<imageH)
+	{
+		float sum = 0;
+		float data;
+		for(int k = -FR; k <= FR; k++)
+		{
+			surf2Dread(&data, temp_Surface2D, ix * 4, iy + k, cudaBoundaryModeClamp);
+			sum += (data * g_Kernel[FR - k]);
+		}
+		int planeIdx;
+		surf2Dread( &planeIdx, depthmap2D_Surface2D, ix * 4, iy, cudaBoundaryModeClamp);
+		if( abs(sum - float(planeIdx)) > 2.0f )
+		{
+			surf2Dwrite(-1, depthmap2D_Surface2D, ix * 4, iy, cudaBoundaryModeTrap); // write the unreliable depth index with a special number
+		}
+	}
+
+}
 
 GaussianBlurCUDA::GaussianBlurCUDA(int width, int height, float sigma): m_nWidth(width), m_nHeight(height), m_paraSigma(sigma)
 {
 	// 
 	cudaChannelFormatDesc ucharTex  = cudaCreateChannelDesc<uchar4>();
 	cudaMallocArray(&_temp2DArray, &ucharTex, m_nWidth, m_nHeight, cudaArraySurfaceLoadStore);
+
+	//cudaArray * depthmap2D_backup;
+	cudaChannelFormatDesc intTex  = cudaCreateChannelDesc<int>();
+	cudaMallocArray(&_depthmap2D_backup, &intTex, m_nWidth, m_nHeight, cudaArraySurfaceLoadStore);
 	
 	//construct kernel for smoothing gradients
 	float filter_kernel[KERNEL_MAX_WIDTH]; 
@@ -122,6 +150,7 @@ GaussianBlurCUDA::GaussianBlurCUDA(int width, int height, float sigma): m_nWidth
 GaussianBlurCUDA::~GaussianBlurCUDA()
 {
 	cudaFreeArray(_temp2DArray);
+	cudaFreeArray(_depthmap2D_backup);
 }
 
 void GaussianBlurCUDA::CreateFilterKernel(float sigma, float* kernel, int& width)
@@ -153,7 +182,7 @@ void GaussianBlurCUDA::CreateFilterKernel(float sigma, float* kernel, int& width
 	//normalize the kernel
 	rv = 1.0f/ksum; for(i=0; i<width; i++) kernel[i]*=rv;
 }
-#include <iostream>
+
 namespace{
 void CUDA_SAFE_CALL( cudaError_t err, std::string file = __FILE__, int line = __LINE__)
 {
@@ -188,7 +217,47 @@ template<int FR> void GaussianBlurCUDA::FilterImage(cudaArray *array3D, int numO
 	convolutionColsKernel<FR><<<blocks, threads>>>( m_nWidth, m_nHeight, layerId );
 	//cudaUnbindTexture(tex32F0);
 	//cudaMemcpyToArray(    dst, 0, 0, m_buf32FA, m_nWidth*m_nHeight*sizeof(float), cudaMemcpyDeviceToDevice);	
-	
+	}
+}
+
+template<int FR> void GaussianBlurCUDA::RemoveUnreliableDepthImage(cudaArray *depthmap_CUDAArray)
+{
+	dim3 threads(THREADS_NUMBER_H, THREADS_NUMBER_V);
+    dim3 blocks( iDivUp(m_nWidth, threads.x), iDivUp(m_nHeight, threads.y) ); //number of blocks required
+
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(temp_Surface2D, _temp2DArray));
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(depthmap2D_Surface2D, depthmap_CUDAArray));
+
+	convolutionRowsKernelRemoveNoise<FR><<<blocks, threads>>>( m_nWidth, m_nHeight);
+	convolutionColsKernelRemoveNoise<FR><<<blocks, threads>>>( m_nWidth, m_nHeight);
+}
+
+void GaussianBlurCUDA::RemoveUnreliableDepth( cudaArray *depthmap_CUDAArray)
+{
+	switch( m_nKernelWidth>>1 /*kernel radius*/ )
+	{
+		case 2:	 RemoveUnreliableDepthImage< 2>(depthmap_CUDAArray);	break;
+		case 3:	 RemoveUnreliableDepthImage< 3>(depthmap_CUDAArray);	break;
+		case 4:	 RemoveUnreliableDepthImage< 4>(depthmap_CUDAArray);	break;
+		case 5:	 RemoveUnreliableDepthImage< 5>(depthmap_CUDAArray);	break;
+		case 6:	 RemoveUnreliableDepthImage< 6>(depthmap_CUDAArray);	break;
+		case 7:	 RemoveUnreliableDepthImage< 7>(depthmap_CUDAArray);	break;
+		case 8:	 RemoveUnreliableDepthImage< 8>(depthmap_CUDAArray);	break;
+		case 9:	 RemoveUnreliableDepthImage< 9>(depthmap_CUDAArray);	break;
+		case 10: RemoveUnreliableDepthImage<10>(depthmap_CUDAArray);	break;
+		case 11: RemoveUnreliableDepthImage<11>(depthmap_CUDAArray);	break;
+		case 12: RemoveUnreliableDepthImage<12>(depthmap_CUDAArray);	break;
+		case 13: RemoveUnreliableDepthImage<13>(depthmap_CUDAArray);	break;
+		case 14: RemoveUnreliableDepthImage<14>(depthmap_CUDAArray);	break;
+		case 15: RemoveUnreliableDepthImage<15>(depthmap_CUDAArray);	break;
+		case 16: RemoveUnreliableDepthImage<16>(depthmap_CUDAArray);	break;
+		case 17: RemoveUnreliableDepthImage<17>(depthmap_CUDAArray);	break;
+		case 18: RemoveUnreliableDepthImage<18>(depthmap_CUDAArray);	break;
+		case 19: RemoveUnreliableDepthImage<19>(depthmap_CUDAArray);	break;
+		case 20: RemoveUnreliableDepthImage<20>(depthmap_CUDAArray);	break;
+		case 21: RemoveUnreliableDepthImage<21>(depthmap_CUDAArray);	break;
+		case 22: RemoveUnreliableDepthImage<22>(depthmap_CUDAArray);	break;
+		default: break;
 	}
 }
 
@@ -221,3 +290,229 @@ void GaussianBlurCUDA::Filter(cudaArray *array3D, int numOfLayers)
 		default: break;
 	}
 }
+
+__device__ void findPosLeft(int x, int y, float *weight, int *planeIdx, int halfPatchSize)
+{
+	*weight = 0.0f; *planeIdx = 0;
+	uchar4 centerColor = tex2D(colorImageTex, x + 0.5, y + 0.5);
+	for(int i = 1; i <= halfPatchSize; i++)
+	{
+		//uchar4 centerColor;
+		//surf2Dread( &centerColor, colorImage_Surface2D, x * 4, y, cudaBoundaryModeClamp);
+		//
+
+		int newX = x - i;
+		if(newX < 0)
+			continue;
+		else
+		{	
+		//	
+			surf2Dread( planeIdx, depthmap2DBackup_Surface2D, newX * 4, y, cudaBoundaryModeClamp);
+			if((*planeIdx) != -1)
+			{
+				//calculate weight and then return
+			//	uchar4 color;
+			//	surf2Dread( &color, colorImage_Surface2D, newX * 4, y, cudaBoundaryModeClamp);
+				uchar4 color = tex2D(colorImageTex, newX + 0.5, y + 0.5);
+
+				*weight = (255.0f - abs(float(color.x) - float(centerColor.x)))/255.0f; 
+				*weight *= (255.0f - abs(float(color.y) - float(centerColor.y)))/255.0f; 
+				*weight *= (255.0f - abs(float(color.z) - float(centerColor.z)))/255.0f; 
+				*weight *= float(halfPatchSize - i)/float(halfPatchSize);
+				break;
+			}
+		}
+	}
+
+}
+
+__device__ void findPosRight(int x, int y, float *weight, int *planeIdx, int halfPatchSize, int imageW)
+{
+	*weight = 0.0f; *planeIdx = 0;
+	uchar4 centerColor = tex2D(colorImageTex, x + 0.5, y + 0.5);
+	for(int i = 1; i <= halfPatchSize; i++)
+	{
+		//uchar4 centerColor;
+		//surf2Dread( &centerColor, colorImage_Surface2D, x * 4, y, cudaBoundaryModeTrap);
+		//
+		int newX = x + i;
+		if(newX >= imageW)
+			continue;
+		else
+		{	
+			surf2Dread( planeIdx, depthmap2DBackup_Surface2D, newX * 4, y, cudaBoundaryModeTrap);
+			if(*planeIdx != -1)
+			{
+				//calculate weight and then return
+		//		uchar4 color;
+		//		surf2Dread( &color, colorImage_Surface2D, newX * 4, y, cudaBoundaryModeTrap);
+				uchar4 color = tex2D(colorImageTex, newX + 0.5, y + 0.5);
+				*weight = (255.0f - abs(float(color.x) - float(centerColor.x)))/255.0f; 
+				*weight *= (255.0f - abs(float(color.y) - float(centerColor.y)))/255.0f; 
+				*weight *= (255.0f - abs(float(color.z) - float(centerColor.z)))/255.0f; 
+				*weight *= float(halfPatchSize - i)/float(halfPatchSize);
+				break;
+			}
+		}
+	}
+}
+
+__device__ void findPosUp(int x, int y, float *weight, int *planeIdx, int halfPatchSize)
+{
+	*weight = 0.0f; *planeIdx = 0;
+	uchar4 centerColor = tex2D(colorImageTex, x + 0.5, y + 0.5);
+	for(int i = 1; i <= halfPatchSize; i++)
+	{
+		//uchar4 centerColor;
+		//surf2Dread( &centerColor, colorImage_Surface2D, x * 4, y, cudaBoundaryModeTrap);
+		//
+		int newY = y - i;
+		if(newY < 0)
+			continue;
+		else
+		{	
+			
+			surf2Dread( planeIdx, depthmap2DBackup_Surface2D, x * 4, newY, cudaBoundaryModeTrap);
+			if(*planeIdx != -1)
+			{
+				//calculate weight and then return
+				//uchar4 color;
+				//surf2Dread( &color, colorImage_Surface2D, x * 4, newY, cudaBoundaryModeTrap);
+				uchar4 color = tex2D(colorImageTex, x + 0.5, newY + 0.5);
+				*weight = (255.0f - abs(float(color.x) - float(centerColor.x)))/255.0f; 
+				*weight *= (255.0f - abs(float(color.y) - float(centerColor.y)))/255.0f; 
+				*weight *= (255.0f - abs(float(color.z) - float(centerColor.z)))/255.0f; 
+				*weight *= float(halfPatchSize - i)/float(halfPatchSize);
+				break;
+			}
+		}
+	}
+}
+
+__device__ void findPosDown(int x, int y, float *weight, int *planeIdx, int halfPatchSize, int imageH)
+{
+	*weight = 0.0f; *planeIdx = 0;
+	uchar4 centerColor = tex2D(colorImageTex, x + 0.5, y + 0.5);
+	for(int i = 1; i <= halfPatchSize; i++)
+	{
+		//uchar4 centerColor;
+		//surf2Dread( &centerColor, colorImage_Surface2D, x * 4, y, cudaBoundaryModeTrap);
+		//
+		int newY = y + i;
+		if(newY >= imageH)
+			continue;
+		else
+		{	
+			surf2Dread( planeIdx, depthmap2DBackup_Surface2D, x * 4, newY, cudaBoundaryModeTrap);
+			if(*planeIdx != -1)
+			{
+				//calculate weight and then return
+			//	uchar4 color;
+			//	surf2Dread( &color, colorImage_Surface2D, x * 4, newY, cudaBoundaryModeTrap);
+				uchar4 color = tex2D(colorImageTex, x + 0.5, newY + 0.5);
+				*weight = (255.0f - abs(float(color.x) - float(centerColor.x)))/255.0f; 
+				*weight *= (255.0f - abs(float(color.y) - float(centerColor.y)))/255.0f; 
+				*weight *= (255.0f - abs(float(color.z) - float(centerColor.z)))/255.0f; 
+				*weight *= float(halfPatchSize - i)/float(halfPatchSize);
+				break;
+			}
+		}
+	}
+}
+
+
+__global__ void fillHolesDepth_kernel(int imageW, int imageH)
+{
+	const   int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
+    const   int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+
+	if(ix <imageW && iy<imageH)
+	{
+		//int newPlaneIdx_int = 120;
+		int centerPlaneIdx;
+		surf2Dread( &centerPlaneIdx, depthmap2DBackup_Surface2D, ix * 4, iy, cudaBoundaryModeClamp);
+		if( centerPlaneIdx == -1)
+		{
+			// search in depthmap2DBackup_Surface2D and colorImage_Surface2D. 
+			float weight[4]= {0}; int planeIndex[4] = {0};
+			int halfPatchSize = 10;
+			findPosLeft(ix, iy, &(weight[0]), &(planeIndex[0]), halfPatchSize);
+			findPosRight(ix, iy, &(weight[1]), &(planeIndex[1]), halfPatchSize, imageW);
+			findPosUp(ix, iy, &(weight[2]), &(planeIndex[2]), halfPatchSize);
+			findPosDown(ix, iy, &(weight[3]), &(planeIndex[3]), halfPatchSize, imageH);
+			////	// do interpolation, then round up
+			float sumWeight = 0.0f;
+			float newplaneIdx = 0.0f;
+			
+			for(int i = 0; i<4; i++)
+			{
+				sumWeight += weight[i];
+				newplaneIdx += weight[i] * float(planeIndex[i]);
+			}
+			//sumWeight = 1;
+			int newPlaneIdx_int;
+			if(sumWeight == 0)
+			{
+				newPlaneIdx_int = -1;
+				//printf("no weight found");
+			}
+			else
+			{
+				newPlaneIdx_int = int((newplaneIdx/sumWeight + 0.5));
+				//printf(" sumWeight: %f, planeIdx: %i\n " , sumWeight, newPlaneIdx_int);
+				//newPlaneIdx_int = 120;
+			}
+		//	//printf(" new plane index: %i\n " , newPlaneIdx_int);
+			surf2Dwrite(newPlaneIdx_int, depthmap2D_Surface2D, ix * 4, iy, cudaBoundaryModeTrap);
+		//	
+		}
+		//surf2Dwrite(newPlaneIdx_int, depthmap2D_Surface2D, ix * 4, iy, cudaBoundaryModeClamp);
+	}
+}
+
+inline void __cudaCheckError( const char *file, const int line )
+{
+#ifdef CUDA_ERROR_CHECK
+    cudaError err = cudaGetLastError();
+    if ( cudaSuccess != err )
+    {
+        fprintf( stderr, "cudaCheckError() failed at %s:%i : %s\n",
+                 file, line, cudaGetErrorString( err ) );
+        exit( -1 );
+    }
+
+    // More careful checking. However, this will affect performance.
+    // Comment away if needed.
+    err = cudaDeviceSynchronize();
+    if( cudaSuccess != err )
+    {
+        fprintf( stderr, "cudaCheckError() with sync failed at %s:%i : %s\n",
+                 file, line, cudaGetErrorString( err ) );
+        exit( -1 );
+    }
+#endif
+
+    return;
+}
+
+void GaussianBlurCUDA::fillHolesDepth(cudaArray *depthmap_CUDAArray, cudaArray *colorImage_CUDAArray)
+{
+	dim3 threads(THREADS_NUMBER_H, THREADS_NUMBER_V);
+    dim3 blocks( iDivUp(m_nWidth, threads.x), iDivUp(m_nHeight, threads.y) ); //number of blocks required
+
+	CUDA_SAFE_CALL(cudaMemcpyArrayToArray(	_depthmap2D_backup, 0, 0, depthmap_CUDAArray, 0, 0, m_nWidth * m_nHeight * sizeof(int), cudaMemcpyDeviceToDevice));
+
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(depthmap2DBackup_Surface2D, _depthmap2D_backup));
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(depthmap2D_Surface2D, depthmap_CUDAArray));
+	//CUDA_SAFE_CALL(cudaBindSurfaceToArray(colorImage_Surface2D, colorImage_CUDAArray));
+	
+	CUDA_SAFE_CALL(cudaBindTextureToArray(colorImageTex, colorImage_CUDAArray));
+	colorImageTex.normalized = false;
+
+	fillHolesDepth_kernel<<<blocks, threads>>>( m_nWidth, m_nHeight);
+	
+	__cudaCheckError(__FILE__, __LINE__);
+
+	CUDA_SAFE_CALL(cudaUnbindTexture( colorImageTex));
+}
+

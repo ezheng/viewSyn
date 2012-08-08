@@ -57,7 +57,6 @@ __global__ void findDepthMap(int imageWidth, int imageHeight, unsigned int numOf
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
 	
 	if(x < imageWidth && y < imageHeight)
-	//if(x == 2 && y == 2)
 	{
 		float cost = 1000000.0f;
 		float cost2nd = 1000000.0f;
@@ -82,26 +81,26 @@ __global__ void findDepthMap(int imageWidth, int imageHeight, unsigned int numOf
 			}
 		}
 		float depth;
-		if( (cost2nd - cost)/(cost2nd + 0.00001) < -0.99 && abs(planeIndex - planeIndex2nd)>1)	// the depth is not reliable
-		{			
+		//if( (cost2nd - cost)/(cost2nd + 0.00001) < -0.99 && abs(planeIndex - planeIndex2nd)>1)	// the depth is not reliable
+		//{			
 			//printf("cost: %f\n", (cost2nd - cost)/(cost2nd + 0.00001));
 			//planeIndex = numOfCandidatePlanes - 1;		// set the index to the last plane
 			//depth = far;
 		//	planeIndex = 1;
 		//	depth = near + 0.02;
-		}
-		else
-		{
+		//}
+		//else
+		//{
 			float d = -1.0f + step * float( planeIndex + 1);
 			depth = -2 * far * near/ (d * (far - near) - (far + near));
-		}
+		//}
 		//printf("%u \n", planeIndex);
 		surf2Dwrite( planeIndex, depthmap_Surface, x * 4, y, cudaBoundaryModeTrap);
 		
 		float normalizedDepth = 255.0f * (depth - near)/ (far - near);
 		uchar4 depthValue = make_uchar4(normalizedDepth, normalizedDepth,normalizedDepth, 255);
 
-		surf2Dwrite( depthValue, depthmapView_Surface, x * 4, y, cudaBoundaryModeTrap);
+		//surf2Dwrite( depthValue, depthmapView_Surface, x * 4, y, cudaBoundaryModeTrap);
 	}
 }
 
@@ -122,6 +121,26 @@ __global__ void writeToSurfaceColor(int width, int height)
 	}
 
 }
+
+
+__global__ void writeDepthValue(int width, int height, float near, float far, float step)
+{
+	int x = blockIdx.x * blockDim.x + threadIdx.x;
+	int y = blockIdx.y * blockDim.y + threadIdx.y;
+	
+	if(x < width && y < height)
+	{
+		int planeIdx;
+		surf2Dread( &planeIdx, depthmap_Surface, x * 4, y,  cudaBoundaryModeTrap);
+		float d = -1.0f + step * float( planeIdx + 1);
+		float depth = -2 * far * near/ (d * (far - near) - (far + near));
+		float normalizedDepth = 255.0f * (depth - near)/ (far - near);
+		uchar4 depthValue = make_uchar4(normalizedDepth, normalizedDepth,normalizedDepth, 255);
+
+		surf2Dwrite( depthValue, depthmapView_Surface, x * 4, y, cudaBoundaryModeTrap);
+	}
+}
+
 
 void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmap_CUDAArray  , cudaArray *depthmapView_CUDAArray,
 	int imgWidth, int imgHeight, unsigned int numOfCandidatePlanes, float near, float far, float step)
@@ -144,6 +163,17 @@ void launchCudaGetDepthMap(cudaArray *cost3D_CUDAArray, cudaArray *depthmap_CUDA
 
 }
 
+void launchCudaWriteDepthIndexToImage(cudaArray *depthmap_CUDAArray, cudaArray *depthmapView_CUDAArray, int width, int height, float near, float far, float step)
+{
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(depthmapView_Surface, depthmapView_CUDAArray));
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(depthmap_Surface, depthmap_CUDAArray));
+	int blockDimX = 16; int blockDimY = 16;
+	dim3 block(blockDimX, blockDimY, 1); 	
+    dim3 grid( (width+block.x - 1) / block.x, (height + block.y - 1) / block.y, 1);
+
+	writeDepthValue<<<grid, block>>> (width, height, near, far , step);
+
+}
 
 void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray, unsigned char *out_array, int imgWidth, int imgHeight, int numOfImages, unsigned int numOfCandidatePlanes)
 {

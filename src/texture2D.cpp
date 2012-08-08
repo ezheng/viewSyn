@@ -28,6 +28,7 @@ void texture2D::create(const GLubyte *pPixels)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR  );
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+	
 	// upload images
 	if(pPixels == NULL)
 	{
@@ -65,10 +66,13 @@ void texture2D::createGL_R32I()
 	glGenTextures(1, &_textureID);
 	glBindTexture(GL_TEXTURE_2D, _textureID);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR  );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER );
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER );
+	GLint borderValue[4] = {-1, -1, -1, -1}; 
+	glTexParameterIiv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderValue);
+
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, _width, _height, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, NULL);	
 

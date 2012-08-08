@@ -105,13 +105,14 @@ private:
 	//struct cudaGraphicsResource *_depthmap_CUDAResource;
 	struct cudaGraphicsResource *_depthmap1_CUDAResource;
 	struct cudaGraphicsResource *_depthmap2_CUDAResource;
-
+	struct cudaGraphicsResource *_colorImage_CUDAResource;
 
 	cudaArray *_cost3D_CUDAArray;
 //	cudaArray *_color3D_CUDAArray;
 	cudaArray *_syncView_CUDAArray;
 	cudaArray *_depthmap1_CUDAArray;
 	cudaArray *_depthmap2_CUDAArray;
+	cudaArray *_colorImage_CUDAArray;
 
 
 	void _CUDA_SAFE_CALL( cudaError_t error, std::string fileName, int lineNum);
@@ -141,7 +142,7 @@ private:
 	void findNearestCam(int * nearCamIndex, glm::vec3 fixedPos, int notIncluded = -1);
 	void createDistTable();
 	int _distTable[16];
-	void doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray, cudaArray* syncView_CUDAArray);
+	void doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray, cudaArray* syncView_CUDAArray, int refIndex);
 	//void renderUsingDepth(int refIndex);
 	void renderUsingDepth(int refIndex, int refIndex1);
 
