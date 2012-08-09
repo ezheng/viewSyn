@@ -20,6 +20,11 @@ qt4_wrap_ui(UI_OUTFILES src/mainWidget.ui src/mainWindow.ui)
 #set(CUDA_NVCC_FLAGS -G0; -arch sm_20)
 set(CUDA_NVCC_FLAGS  -arch sm_20)
 
+
+IF(MSVC)
+   ADD_DEFINITIONS(/arch:SSE)
+ENDIF(MSVC)
+
 include_directories(
 					${QT_QTGUI_INCLUDE_DIR} 
                     ${QT_QTCORE_INCLUDE_DIR} 
@@ -28,7 +33,7 @@ include_directories(
                     ${CMAKE_BINARY_DIR}
 					${OPENCV_INCLUDE}
 					${GLM_PATH}
-					${PTGRY}/include
+					${PTGRY}/include 
 					${GLEW_PATH}/include
 					${CUDA_TOOLKIT_INCLUDE}	
 					${IMDEBUG_PATH}

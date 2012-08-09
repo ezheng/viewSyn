@@ -13,7 +13,9 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 #include "texture2D.h"
-#include <QTime>
+//#include <QTime>
+#include <qelapsedtimer.h>
+#include "GaussianBlurCUDA.h"
 
 class planeSweepParameters
 {
@@ -147,14 +149,15 @@ private:
 	void renderUsingDepth(int refIndex, int refIndex1);
 
 	int _numOfVertices;
-	QTime _t;
-	float _totalTime;
-	int _numOfFrame;
+	QElapsedTimer _t;
+	
 
 // for rotation and translation
 	float _weightOfView;
 	int _nearestCamIndex;
 
+//
+	GaussianBlurCUDA *_gaussianF;
 
 signals:
 	void updateGL_SIGNAL();

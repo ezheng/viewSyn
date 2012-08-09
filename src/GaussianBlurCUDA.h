@@ -23,7 +23,10 @@ private:
 private:
 
 	cudaArray *_temp2DArray;
+	cudaArray *_temp2DArray_2;
 	cudaArray *_depthmap2D_backup;
+
+	cudaStream_t stream[2];
 };
 
 

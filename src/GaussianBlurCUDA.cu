@@ -10,8 +10,8 @@
 #define KERNEL_MIN_WIDTH  5       //do not change!!!
 #define FILTER_WIDTH_FACTOR 5.0f
 
-#define THREADS_NUMBER_H 16
-#define THREADS_NUMBER_V 16
+#define THREADS_NUMBER_H 8
+#define THREADS_NUMBER_V 8
 
 ////////////////////////////////////////////////////////////////////////////////
 // Convolution kernel
@@ -26,6 +26,7 @@ __device__ __constant__ float g_Kernel[KERNEL_MAX_WIDTH];
 surface<void, cudaSurfaceType3D> cost_Surface3D;
 
 surface<void, cudaSurfaceType2D> temp_Surface2D;
+surface<void, cudaSurfaceType2D> temp_Surface2D_2;
 surface<void, cudaSurfaceType2D> depthmap2D_Surface2D;
 surface<void, cudaSurfaceType2D> depthmap2DBackup_Surface2D;
 
@@ -48,22 +49,41 @@ inline int iAlignUp(int a, int b){ return (a % b != 0) ?  (a - a % b + b) : a; }
 ////////////////////////////////////////////////////////////////////////////////
 // Kernel Row convolution filter
 ////////////////////////////////////////////////////////////////////////////////
-template<int FR> __global__ void convolutionRowsKernel( int imageW, int imageH, int layerId )
+template<int FR> __global__ void convolutionRowsKernel( int imageW, int imageH, int layerId)
 {
     const   int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const   int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 	
 	if(ix <imageW && iy<imageH)
 	{
-		float sum = 0;
+		float sum(0.0f);
 		float data;
 #pragma unroll
 		for(int k = -FR; k <= FR; k++)
 		{
-			surf3Dread(&data, cost_Surface3D, (ix + k) * 4, iy, layerId, cudaBoundaryModeClamp);			
+			surf3Dread(&data, cost_Surface3D, (ix + k) * 4, iy, layerId, cudaBoundaryModeClamp);
 			sum += (data * g_Kernel[FR - k]);
 		}
 		surf2Dwrite(sum, temp_Surface2D, ix * 4, iy, cudaBoundaryModeTrap);
+	} 
+}
+
+template<int FR> __global__ void convolutionRowsKernel_2( int imageW, int imageH, int layerId)
+{
+    const   int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
+    const   int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+	
+	if(ix <imageW && iy<imageH)
+	{
+		float sum(0.0f);
+		float data;
+#pragma unroll
+		for(int k = -FR; k <= FR; k++)
+		{
+			surf3Dread(&data, cost_Surface3D, (ix + k) * 4, iy, layerId, cudaBoundaryModeClamp);
+			sum += (data * g_Kernel[FR - k]);
+		}
+		surf2Dwrite(sum, temp_Surface2D_2, ix * 4, iy, cudaBoundaryModeTrap);
 	} 
 }
 
@@ -75,6 +95,7 @@ template<int FR> __global__ void convolutionRowsKernelRemoveNoise(int imageW, in
 	 {
 		float sum = 0;
 		int planeIdx;
+#pragma unroll
 		for(int k = -FR; k <= FR; k++)
 		{
 			surf2Dread( &planeIdx, depthmap2D_Surface2D, (ix + k) * 4, iy, cudaBoundaryModeClamp);
@@ -88,7 +109,7 @@ template<int FR> __global__ void convolutionRowsKernelRemoveNoise(int imageW, in
 ////////////////////////////////////////////////////////////////////////////////
 // Kernel Column convolution filter
 ////////////////////////////////////////////////////////////////////////////////
-template<int FR> __global__ void convolutionColsKernel( int imageW, int imageH, int layerId )
+template<int FR> __global__ void convolutionColsKernel( int imageW, int imageH, int layerId)
 {
     const   int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const   int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
@@ -97,9 +118,29 @@ template<int FR> __global__ void convolutionColsKernel( int imageW, int imageH, 
 	{
 		float sum = 0;
 		float data;
+#pragma unroll
 		for(int k = -FR; k <= FR; k++)
 		{
 			surf2Dread(&data, temp_Surface2D, ix * 4, iy + k, cudaBoundaryModeClamp);
+			sum += (data * g_Kernel[FR - k]);
+		}
+		surf3Dwrite(sum, cost_Surface3D, ix * 4, iy, layerId, cudaBoundaryModeTrap);
+	}
+}
+
+template<int FR> __global__ void convolutionColsKernel_2( int imageW, int imageH, int layerId)
+{
+    const   int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
+    const   int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+
+	if(ix <imageW && iy<imageH)
+	{
+		float sum = 0;
+		float data;
+#pragma unroll
+		for(int k = -FR; k <= FR; k++)
+		{
+			surf2Dread(&data, temp_Surface2D_2, ix * 4, iy + k, cudaBoundaryModeClamp);
 			sum += (data * g_Kernel[FR - k]);
 		}
 		surf3Dwrite(sum, cost_Surface3D, ix * 4, iy, layerId, cudaBoundaryModeTrap);
@@ -135,11 +176,15 @@ GaussianBlurCUDA::GaussianBlurCUDA(int width, int height, float sigma): m_nWidth
 	// 
 	cudaChannelFormatDesc ucharTex  = cudaCreateChannelDesc<uchar4>();
 	cudaMallocArray(&_temp2DArray, &ucharTex, m_nWidth, m_nHeight, cudaArraySurfaceLoadStore);
+	cudaMallocArray(&_temp2DArray_2, &ucharTex, m_nWidth, m_nHeight, cudaArraySurfaceLoadStore);
 
 	//cudaArray * depthmap2D_backup;
 	cudaChannelFormatDesc intTex  = cudaCreateChannelDesc<int>();
 	cudaMallocArray(&_depthmap2D_backup, &intTex, m_nWidth, m_nHeight, cudaArraySurfaceLoadStore);
 	
+	//
+	for (int i = 0; i < 2; ++i) cudaStreamCreate(&stream[i]);
+
 	//construct kernel for smoothing gradients
 	float filter_kernel[KERNEL_MAX_WIDTH]; 
 	CreateFilterKernel(m_paraSigma, filter_kernel, m_nKernelWidth);
@@ -149,7 +194,10 @@ GaussianBlurCUDA::GaussianBlurCUDA(int width, int height, float sigma): m_nWidth
 GaussianBlurCUDA::~GaussianBlurCUDA()
 {
 	cudaFreeArray(_temp2DArray);
+	cudaFreeArray(_temp2DArray_2);
 	cudaFreeArray(_depthmap2D_backup);
+	for (int i = 0; i < 2; ++i) 
+		cudaStreamDestroy(stream[i]);
 }
 
 void GaussianBlurCUDA::CreateFilterKernel(float sigma, float* kernel, int& width)
@@ -202,21 +250,23 @@ template<int FR> void GaussianBlurCUDA::FilterImage(cudaArray *array3D, int numO
 	//CUDA_SAFE_CALL(cudaBindSurfaceToArray(colorTex_Surface3D, array3D));
 	CUDA_SAFE_CALL(cudaBindSurfaceToArray(cost_Surface3D, array3D));
 	CUDA_SAFE_CALL(cudaBindSurfaceToArray(temp_Surface2D, _temp2DArray));
-	
+	CUDA_SAFE_CALL(cudaBindSurfaceToArray(temp_Surface2D_2, _temp2DArray_2));
+
 	//horizontal pass:
 	//cudaBindTextureToArray(tex32F0, src);
-	for(int layerId = 0; layerId<numOfLayers; layerId++)
+	//cudaStream_t stream[2]; for (int i = 0; i < 2; ++i) cudaStreamCreate(&stream[i]);
+
+	for(int layerId = 0; layerId< (numOfLayers/2); layerId++)
 	{
-	convolutionRowsKernel<FR><<<blocks, threads>>>( m_nWidth, m_nHeight, layerId );
-	//cudaUnbindTexture(tex32F0);
-	//cudaMemcpyToArray(m_cuaTmp, 0, 0, m_buf32FA, m_nWidth*m_nHeight*sizeof(float), cudaMemcpyDeviceToDevice);
-	
-	//vertical pass:
-	//cudaBindTextureToArray(tex32F0, m_cuaTmp);
-	convolutionColsKernel<FR><<<blocks, threads>>>( m_nWidth, m_nHeight, layerId );
-	//cudaUnbindTexture(tex32F0);
-	//cudaMemcpyToArray(    dst, 0, 0, m_buf32FA, m_nWidth*m_nHeight*sizeof(float), cudaMemcpyDeviceToDevice);	
+		convolutionRowsKernel<FR><<<blocks, threads, 0, stream[0]>>>( m_nWidth, m_nHeight, layerId * 2);
+		convolutionRowsKernel_2<FR><<<blocks, threads, 0, stream[1]>>>( m_nWidth, m_nHeight, layerId * 2 + 1);
+
+		convolutionColsKernel<FR><<<blocks, threads, 0, stream[0]>>>( m_nWidth, m_nHeight, layerId * 2);
+		convolutionColsKernel_2<FR><<<blocks, threads, 0, stream[1]>>>( m_nWidth, m_nHeight, layerId * 2 + 1);
 	}
+	//cudaStreamSynchronize()
+	//for (int i = 0; i < 2; ++i) cudaStreamDestroy(stream[i]);
+	cudaDeviceSynchronize();
 }
 
 template<int FR> void GaussianBlurCUDA::RemoveUnreliableDepthImage(cudaArray *depthmap_CUDAArray)

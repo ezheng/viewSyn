@@ -59,48 +59,25 @@ __global__ void findDepthMap(int imageWidth, int imageHeight, unsigned int numOf
 	if(x < imageWidth && y < imageHeight)
 	{
 		float cost = 1000000.0f;
-		float cost2nd = 1000000.0f;
+		//float cost2nd = 1000000.0f;
 		int planeIndex; float dataCost = 0; 
-		int planeIndex2nd;
+		//int planeIndex2nd;
 		for(unsigned int i = 0; i<numOfCandidatePlanes; i++)
 		{		
 			dataCost = tex3D(layeredTex, x + 0.5, y + 0.5, i + 0.5);
 			
 			if(dataCost < cost)
 			{
-				cost2nd = cost;	// the smallest cost replace the second smallest cost
-				planeIndex2nd = planeIndex;
-				//-----------------------------------------
 				cost = dataCost;
 				planeIndex = i;
 			}
-			else if( dataCost < cost2nd)
-			{
-				cost2nd = dataCost;
-				planeIndex2nd = i;
-			}
+			
 		}
-		float depth;
-		//if( (cost2nd - cost)/(cost2nd + 0.00001) < -0.99 && abs(planeIndex - planeIndex2nd)>1)	// the depth is not reliable
-		//{			
-			//printf("cost: %f\n", (cost2nd - cost)/(cost2nd + 0.00001));
-			//planeIndex = numOfCandidatePlanes - 1;		// set the index to the last plane
-			//depth = far;
-		//	planeIndex = 1;
-		//	depth = near + 0.02;
-		//}
-		//else
-		//{
-			float d = -1.0f + step * float( planeIndex + 1);
-			depth = -2 * far * near/ (d * (far - near) - (far + near));
-		//}
-		//printf("%u \n", planeIndex);
-		surf2Dwrite( planeIndex, depthmap_Surface, x * 4, y, cudaBoundaryModeTrap);
 		
-		float normalizedDepth = 255.0f * (depth - near)/ (far - near);
-		uchar4 depthValue = make_uchar4(normalizedDepth, normalizedDepth,normalizedDepth, 255);
-
-		//surf2Dwrite( depthValue, depthmapView_Surface, x * 4, y, cudaBoundaryModeTrap);
+		float d = -1.0f + step * float( planeIndex + 1);
+		float depth = -2 * far * near/ (d * (far - near) - (far + near));
+		
+		surf2Dwrite( planeIndex, depthmap_Surface, x * 4, y, cudaBoundaryModeTrap);
 	}
 }
 
