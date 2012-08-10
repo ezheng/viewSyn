@@ -100,25 +100,11 @@ void mainWindowForm::startCapture_slot()
 	if(_busHandler == NULL)
 	{
 		// read the calibration data
+		
 
-	//	_allImages->resize( _busHandler->returnNumberOfCams());
-	//	_allImagesBackBuffer->resize( _busHandler->returnNumberOfCams());
-		while(_allImages == _allImagesBackBuffer)
-		{
-			std::cout<< "buffer error" << std::endl;
-		}
-
-	//	_busHandler = new allImageCaptureManager(_allImagesBackBuffer); 
 		_busHandler = new allImageCaptureManager(_allImages); 
 		_allImagesBackBuffer->resize( _busHandler->returnNumberOfCams());
-		//_allImagesBackBuffer->resize( _busHandler->returnNumberOfCams());
-
-		while(_allImages == _allImagesBackBuffer)
-		{
-			std::cout<< "buffer error" << std::endl;
-		}
-		//_busHandler->retrieveImgsAllParallel_SLOTS();
-		// move this object to a new thread
+				
 		_busHandler->moveToThread(&_CamCaptureThread);
 		QObject::connect( this, SIGNAL(retrieveImgsAllParallel_SIGNAL()), _busHandler, SLOT(retrieveImgsAllParallel_SLOTS()));
 		QObject::connect( _busHandler, SIGNAL(imageReady_SIGNAL()), this, SLOT(retrieveImages()));
@@ -139,21 +125,14 @@ void mainWindowForm::startCapture_slot()
 }
 
 
-
+// this function is executed when the cameraReady is signalled.
 void mainWindowForm::retrieveImages()
 {
 	if(_busHandler == NULL || _busHandler->returnNumberOfCams() ==0)
 		 return;
-
-	//capture a new image 
-	//_allImages = _busHandler->retrieveImgsAllParallel(_allImages);
-	// give a signal to _busHandler to let it capture an image
 	
-	//emit retrieveImgsAllParallel_SIGNAL(&_allImages);
-	// just swap buffer
-
 	_busHandler->swapBuffer(&_allImages);
-	emit retrieveImgsAllParallel_SIGNAL();
+	emit retrieveImgsAllParallel_SIGNAL();	// after obtaining the new image(by swapping the buffer), tell the camera to capture image
 
 	//---------------------------------------------------------------------
 	if(_imagesForm == NULL)
@@ -175,7 +154,6 @@ void mainWindowForm::retrieveImages()
 			}
 			init = false;
 		}
-
 		_imagesForm->setUpImages(_allImages, _widgetForContext);		
 		
 		//if(!_wasCapturing)
@@ -186,7 +164,6 @@ void mainWindowForm::retrieveImages()
 		//}			
 		_allImagesForm->updateGL();
 		emit redrawImages();
-
 		
 	}
 

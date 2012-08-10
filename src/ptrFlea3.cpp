@@ -124,7 +124,7 @@ void allImageCaptureManager:: retrieveImgsAllParallel_SLOTS( )
 	// wait here:
 	while(! allFlagsReady())
 	{/*std::cout<<"waiting " << iii << std::endl; ii++;*/ }
-
+	std::cout<< std::endl;
 	// emit signal to the main thread to notify 
 	emit imageReady_SIGNAL();
 
@@ -248,13 +248,13 @@ void oneCame::retrieveImageParallel()
 
 void oneCame::retrieveImage()
 {
-	
+	//std::cout<< "camera: " << _cameraId << "start capturing." <<std::endl;
 	PGR_SAFE_CALL(_cam.RetrieveBuffer( &_img));
-	
+	//std::cout<< "camera: " << _cameraId << "finish capturing." <<std::endl;
 
 	  FlyCapture2::TimeStamp t1 = _img.GetTimeStamp();
-	//  std::cout<< "second" << _cameraId << ": " << t1.seconds << " microseconds" << _cameraId << ": " << t1.microSeconds 
-	//	  << " current thread id" << GetCurrentThreadId() << std::endl;
+	 std::cout<< "camera: " << _cameraId << " second: " << t1.seconds << " microseconds" << ": " << t1.microSeconds 
+		  << " current thread id" << GetCurrentThreadId() << std::endl;
 	// FlyCapture2::TimeStamp t2 = rawImage[2].GetTimeStamp();
 	// std::cout<< "second2: " << t2.seconds << " millionSeconds1: " << t2.microSeconds<< std::endl;
 
@@ -279,7 +279,7 @@ void oneCame::retrieveImage()
 			for(int j = 0; j< width; j++)
 			{
 				int offsetOrig = i*stride + j * 3;
-				int offsetDest = (height - 1 - i) * stride + j * 3;
+				int offsetDest = (height - 1 - i) * _imgOPENCV->step + j * 3;
 				_imgOPENCV->data[offsetDest + 2] = dataPoint[offsetOrig];
 				_imgOPENCV->data[offsetDest ] = dataPoint[offsetOrig + 2];
 				_imgOPENCV->data[offsetDest + 1] = dataPoint[offsetOrig + 1];
@@ -321,11 +321,13 @@ oneCame::oneCame(int id, FlyCapture2::BusManager &busMgr, cv::Mat* img):_cameraI
 	int centerX = 1328/2;
 	int centerY = 1024/2;
 	//_allImgs = new FlyCapture2::Image[_numOfCams];
-    _fmt7ImageSettings.mode = FlyCapture2::MODE_7;;	  
-	_fmt7ImageSettings.width = 800;   
-	_fmt7ImageSettings.height = 600;
-    _fmt7ImageSettings.offsetX = centerX - _fmt7ImageSettings.width /2;
-    _fmt7ImageSettings.offsetY = centerY - _fmt7ImageSettings.height /2; 
+    _fmt7ImageSettings.mode = FlyCapture2::MODE_4;;	  
+	_fmt7ImageSettings.width = 656;   
+	_fmt7ImageSettings.height = 524;
+   // _fmt7ImageSettings.offsetX = centerX - _fmt7ImageSettings.width /2;
+   // _fmt7ImageSettings.offsetY = centerY - _fmt7ImageSettings.height /2;
+	_fmt7ImageSettings.offsetX = 0;
+	_fmt7ImageSettings.offsetY = 0;
     _fmt7ImageSettings.pixelFormat =  FlyCapture2::PIXEL_FORMAT_RGB8;
     // Validate the settings to make sure that they are valid
 	bool valid;
