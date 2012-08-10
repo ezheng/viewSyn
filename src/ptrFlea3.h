@@ -22,21 +22,26 @@ public:
 	QThread* _threads;
 	FlyCapture2::BusManager _busMgr;
 
-	std::vector<image>* retrieveImgsAllParallel(std::vector<image>* newBuffer);	
+	//std::vector<image>* retrieveImgsAllParallel(std::vector<image>* newBuffer);	
 	void startCaptureAll();
 	void stopCaptureAll(){};
 	void retrieveImgsAll();
 	unsigned int returnNumberOfCams();
-	
+	void swapBuffer( std::vector<image> ** newBuffer);
 
 private:
 	unsigned int _numOfCams;
 	std::vector<oneCame*> _allCames;
 	std::vector<image> *_allIms;	
 	bool allFlagsReady();
-
+	std::vector<int> _indices;
 signals:
 	void retrieveImgsAllParallel();
+	void imageReady_SIGNAL();
+
+public slots:
+	void retrieveImgsAllParallel_SLOTS();
+
 };
 
 
@@ -55,6 +60,7 @@ public:
 	bool isReady();
 
 	bool _readyFlag;
+	FlyCapture2:: CameraInfo getCamInfo();
 
 private:
 	void restartCam();
@@ -72,7 +78,7 @@ private:
 	unsigned int _cameraId;	// 0 , 1 ,2...
 	FlyCapture2::PGRGuid _guid;
 	QMutex _mutex;
-
+	
 public slots:		
 	void retrieveImageParallel();
 

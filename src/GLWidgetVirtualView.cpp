@@ -43,6 +43,7 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 		_mouseX(0), _mouseY(0), _imageQGLWidgets(imageQGLWidgets), _cost3DTexID(0), _fbo(NULL), _fboRenderImage(0),_depthTextureForRenderImage(0),
 		_psVertexBufferHandle(0), 
 		_psVertexArrayObjectHandle(0), _syncView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
+		//_depthmapView((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), _display_Color_Depth(true)
 		_renderedImage1((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
 		_renderedImage2((**allIms)[0]._image.cols, (**allIms)[0]._image.rows), 
 		_renderVertexArrayObjectHandle(0), _renderVertexBufferHandle(0),
@@ -72,6 +73,8 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	_psParam._gaussianSigma = 1.0f;
 	_psParam._near = 3.5f;
 	_psParam._far = 10.f;
+//_psParam._near = 1200.f;
+//	_psParam._far =  2200.f;
 	//_psParam._near = .45f;
 	//_psParam._far = .6f;
 
@@ -83,12 +86,8 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	_warpingFragFileName = filePath + "\\warping.frag";
 	//writeGeometryShaderFile(_warpingGeoFileName);
 	//writeFragmentShaderFile(_warpingFragFileName);
-
-	_nearestCamIndex = _virtualImg._camIndex + 1;
-	_nearestCamIndex = _nearestCamIndex >= _psParam._numOfCameras? (_nearestCamIndex-1):_nearestCamIndex;
-
+	_nearestCamIndex = _virtualImg._camIndex + 1;	_nearestCamIndex = _nearestCamIndex >= _psParam._numOfCameras? (_nearestCamIndex-1):_nearestCamIndex;
 }
-
 void GLWidgetVirtualView::psFarPlaneChanged(double farPlanePos)
 {
 	std::cout<< "psFarPlaneChanged"<< std::endl;
@@ -317,17 +316,17 @@ void GLWidgetVirtualView::initializeGL()
 	printOpenGLError();
 
 	// register the 3d texture so that CUDA can use it
-	size_t free, total; float mb = 1<<20;
-	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
+	//size_t free, total; float mb = 1<<20;
+	//cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_cost3D_CUDAResource, _cost3DTexID, 
 				  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 3d texture
-	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
+	//cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	//CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_color3D_CUDAResource, _color3DTexID, 
 	//			  GL_TEXTURE_3D, cudaGraphicsRegisterFlagsNone ));// register the 3d texture
 		
-	cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
+	//cudaMemGetInfo (&free, &total); std::cout<< "free memory is: " << free/mb << "MB total memory is: " << total/mb << " MB" << std::endl;
 
 	CUDA_SAFE_CALL(cudaGraphicsGLRegisterImage(&_syncView_CUDAResource, _syncView._textureID, 
 				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsSurfaceLoadStore ));// register the 2d texture
@@ -491,7 +490,6 @@ void GLWidgetVirtualView::displayLayedTexture(GLuint &texture1, GLuint &texture2
 	_shaderHandleDisplayLayerTexture.setUniform("weight", _weightOfView);
 	_shaderHandleDisplayLayerTexture.setUniform("x_texSize", 1.0f/ static_cast<float>(_psParam._virtualWidth));
 	_shaderHandleDisplayLayerTexture.setUniform("y_texSize", 1.0f/ static_cast<float>(_psParam._virtualHeight));
-	//std::cout<<_weightOfView << std::endl;
 	
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
@@ -604,6 +602,9 @@ void GLWidgetVirtualView::paintGL()
 		// matrix:
 	glm::mat4 projScaleTrans = glm::translate(glm::vec3(0.5f)) * glm::scale(glm::vec3(0.5f));
 	
+
+	
+
 	// *****
 	//int numOfImages = _psParam._numOfCameras;
 	//glm::mat4 *modelViewProj = new glm::mat4[numOfImages];
@@ -713,7 +714,7 @@ void GLWidgetVirtualView::paintGL()
 	this->swapBuffers();
 
 	//
-	static bool isTheFirstFrame = true;
+	/*static bool isTheFirstFrame = true;
 	if(isTheFirstFrame)
 	{
 		_t.start();
@@ -722,7 +723,7 @@ void GLWidgetVirtualView::paintGL()
 	else
 	{
 		std::cout<< _t.restart() << std::endl;
-	}
+	}*/
 	//emit updateGL_SIGNAL();
 
 }
@@ -781,6 +782,7 @@ void GLWidgetVirtualView::renderUsingDepth(int refIndex, int refIndex1)
 	//displayImage(_renderedImage1._textureID, _psParam._virtualWidth, _psParam._virtualHeight);
 	
 
+	
 }
 
 void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray, cudaArray* syncView_CUDAArray, int refIndex)
@@ -975,7 +977,7 @@ void GLWidgetVirtualView::mouseMoveEvent(QMouseEvent *event)
 		//	quat_cast (detail::tmat3x3< T > const &x)
 		glm::quat qt = 	glm::mix(glm::quat_cast((**_allIms)[_nearestCamIndex]._glmR), glm::quat_cast((**_allIms)[_virtualImg._camIndex]._glmR) , _weightOfView);
 		_virtualImg._glmR = glm::mat3_cast(qt);
- 	//Returns a SLERP interpolated quaternion of x and y according a. 
+	//Returns a SLERP interpolated quaternion of x and y according a. 
 
 		_virtualImg.setModelViewMatrix();
 		_virtualImg.setProjMatrix();

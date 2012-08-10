@@ -29,8 +29,8 @@ void GLWidgetAllImgs :: upDateParam()
 	computeBoundingBox();
 
 	_nearPlane = _allCamRadius * 0.1;
-	_farPlane = _allCamRadius * 500;	// this will work for all the cases
-	_fieldOfView = 90;	// this can be changed by mouse
+	_farPlane = _allCamRadius * 100;	// this will work for all the cases
+	_fieldOfView = 120;	// this can be changed by mouse
 
 	_objCenterPos = _allCamCenter;
 	//_optCenterPos = _allCamCenter + glm::vec3(0., 0., -1.5* _allCamRadius);
@@ -38,6 +38,7 @@ void GLWidgetAllImgs :: upDateParam()
 	std::cout<<" allCamRadius: " << _allCamRadius << std::endl;
 	_virtualModelViewMatrix = glm::lookAt( _optCenterPos, 
 		_objCenterPos, glm::vec3(0.0, 1.0, 0.0));
+	_virtualProjectionMatrix = glm::perspective( _fieldOfView, _aspectRatio, _nearPlane, _farPlane);
 }
 
 
@@ -157,12 +158,14 @@ void GLWidgetAllImgs::display()
 	glLoadIdentity();
 	glLoadMatrixf(&(_virtualModelViewMatrix[0][0]));
 	
+	
+
 	for(size_t i = 0; i< (*_allIms)->size(); i++)
 	{		
 		drawOneCam( (**_allIms)[i], _imageQGLWidgets[i]); 
 	}
 	drawCoordinate();
-	drawObjectScope();
+//	drawObjectScope();
 
 	if(_virtualImg != NULL)
 		drawOneCam( *_virtualImg);
@@ -294,9 +297,20 @@ void GLWidgetAllImgs::drawOneCam(const virtualImage &img)
 
 void GLWidgetAllImgs::drawOneCam(const image &img, GLWidget* _oneImageQGLWidgets)
 {
+
 	glm::vec3 optCenterPos = img._optCenterPos;
 	glm::vec3 lookAtPos = img._lookAtPos;
 	glm::vec3 upDir = img._upDir;
+
+	/*std::cout<< "optCenterPos" << std::endl;
+	for(int i = 0; i<3; i++)
+		std::cout<< optCenterPos[i]<< " ";
+	std::cout<<std::endl;
+	std::cout<< "lookAtPos: " << std::endl;
+	for(int i = 0; i<3; i++)
+		std::cout<< lookAtPos[i]<< " ";
+	std::cout<<std::endl;*/
+
 
 	glm::vec3 camLookAtDir = glm::normalize(lookAtPos - optCenterPos);
 	glm::vec3 camUpDir = glm::normalize(upDir);

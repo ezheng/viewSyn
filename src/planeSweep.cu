@@ -182,4 +182,3 @@ void launchCudaProcess(cudaArray *cost3D_CUDAArray, cudaArray *color3D_CUDAArray
 
 }
 
-

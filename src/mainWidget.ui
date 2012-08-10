@@ -193,7 +193,7 @@
     <item>
      <widget class="QDoubleSpinBox" name="doubleSpinBox_nearPlane">
       <property name="maximum">
-       <double>999.990000000000009</double>
+       <double>9999.989999999999782</double>
       </property>
       <property name="singleStep">
        <double>1.000000000000000</double>
@@ -225,7 +225,7 @@
     <item>
      <widget class="QDoubleSpinBox" name="doubleSpinBox_farPlane">
       <property name="maximum">
-       <double>999.990000000000009</double>
+       <double>9999.989999999999782</double>
       </property>
       <property name="singleStep">
        <double>0.500000000000000</double>

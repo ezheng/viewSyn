@@ -74,8 +74,10 @@ void viewSynForm::saveImage()
 
 		if((**_ims)[i]._image.rows != 600)
 			std::cout<<"empty images" << std::endl;
-
-		cv::imwrite(fullFileName, (**_ims)[i]._image);
+		
+		cv::Mat img;
+		cv::flip((**_ims)[i]._image,img, 0);
+		cv::imwrite(fullFileName, img);
 	}
 }
 

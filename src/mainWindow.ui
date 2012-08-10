@@ -40,6 +40,7 @@
     <property name="title">
      <string>Run</string>
     </property>
+    <addaction name="actionLoad_Cam_Param"/>
     <addaction name="actionView_Synthesis"/>
     <addaction name="actionPrint_Error"/>
    </widget>
@@ -75,6 +76,11 @@
   <action name="actionPrint_Error">
    <property name="text">
     <string>Print Error</string>
+   </property>
+  </action>
+  <action name="actionLoad_Cam_Param">
+   <property name="text">
+    <string>Load Cam Param</string>
    </property>
   </action>
  </widget>
