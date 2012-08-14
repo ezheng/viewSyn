@@ -296,6 +296,22 @@ void mainWindowForm::readCalibrationData(std::string fileName, std::vector<image
 		//else
 		//_allImages->push_back(im);
 	 }
+	 //
+	 int numOfImages_2; in >> numOfImages_2;
+	  
+	 
+	 if(numOfImages_2 == numOfImages)
+	 {
+		for(unsigned int i =0; i < numOfImages; i++)
+		{
+			double kc[5];
+			for(int j = 0; j<5; j++)
+				in>>kc[j];
+			(*allImages)[i].setupDistortionParam(kc);
+			(*allImagesBackBuffer)[i].setupDistortionParam(kc);
+		}
+	 }
+
 	 in.close();
 
 }

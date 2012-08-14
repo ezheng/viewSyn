@@ -11,6 +11,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include <imdebuggl.h>
 #include <fstream>
+#include "ApproBilaterFilterHoleFilling.h"
 
 #include <glm/gtc/quaternion.hpp>
 
@@ -68,11 +69,11 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 120;
-	_psParam._numOfCameras  = 5;	
-	_psParam._gaussianSigma = 1.0f;
-	_psParam._near = 3.5f;
-	_psParam._far = 10.f;
+	_psParam._numOfPlanes = 80;
+	_psParam._numOfCameras  = 8;	
+	_psParam._gaussianSigma = 2.0f;
+	_psParam._near = 800.f;
+	_psParam._far = 2000.f;
 //_psParam._near = 1200.f;
 //	_psParam._far =  2200.f;
 	//_psParam._near = .45f;
@@ -603,8 +604,6 @@ void GLWidgetVirtualView::paintGL()
 	glm::mat4 projScaleTrans = glm::translate(glm::vec3(0.5f)) * glm::scale(glm::vec3(0.5f));
 	
 
-	
-
 	// *****
 	//int numOfImages = _psParam._numOfCameras;
 	//glm::mat4 *modelViewProj = new glm::mat4[numOfImages];
@@ -810,7 +809,11 @@ void GLWidgetVirtualView::doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray*
 				  GL_TEXTURE_2D, cudaGraphicsRegisterFlagsReadOnly ));// register the 3d texture
 	CUDA_SAFE_CALL(cudaGraphicsMapResources(1, &_colorImage_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsSubResourceGetMappedArray(&_colorImage_CUDAArray, _colorImage_CUDAResource, 0, 0));	// 0th layer, 0 mipmap level
-	gaussianF.fillHolesDepth(depthmap_CUDAArray, _colorImage_CUDAArray);
+	//gaussianF.fillHolesDepth(depthmap_CUDAArray, _colorImage_CUDAArray);		// need to change this part
+	ApproBilaterFilterHoleFilling fillHoleFilter(width, height, 6.0f, 14.0f);
+	fillHoleFilter.Fill( depthmap_CUDAArray, _colorImage_CUDAArray);
+
+
 	CUDA_SAFE_CALL(cudaGraphicsUnmapResources(1, &_colorImage_CUDAResource, 0));
 	CUDA_SAFE_CALL(cudaGraphicsUnregisterResource(_colorImage_CUDAResource));
 	

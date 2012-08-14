@@ -1,5 +1,11 @@
 #include "image.h"
 
+
+image::image()
+{
+	_kc = cv::Mat::zeros(5, 1, CV_64F);
+}
+
 image::image(std::string fileName, double * K, double *R, double *T): _near(0.1f), _far(200.0f)
 {		
 
@@ -36,6 +42,16 @@ image::image(std::string fileName, double * K, double *R, double *T): _near(0.1f
 
 	setModelViewMatrix();
 	setProjMatrix();
+
+	_kc = cv::Mat::zeros(5, 1, CV_64F);
+}
+
+void image::setupDistortionParam(double * kc)
+{
+	//_kc = cv::Mat(5, 1, CV_64F, kc).clone();
+	for(int i = 0; i<5; i++)
+		_kc.at<double>(i) = kc[i];
+
 }
 
 void image::updateCamParam(double *K, double *R, double *T)

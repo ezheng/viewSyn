@@ -34,6 +34,9 @@ public:
 	float _near;
 	float _far;
 
+// undistortion parameters
+	cv::Mat _kc;
+
 //-------------------
 	std::string _imageName;
 	cv::Mat _image;
@@ -44,9 +47,10 @@ public:
 
 	cv::Mat calculateFundMatrix(const image &im);		
 	image(std::string fileName, double * K, double *R, double *T);
-	image(){}
+	image();
 	~image(){}
 	//image( const image& im);
+	void image::setupDistortionParam(double * kc);
 };
 
 

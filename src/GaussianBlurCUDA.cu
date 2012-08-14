@@ -147,6 +147,8 @@ template<int FR> __global__ void convolutionColsKernel_2( int imageW, int imageH
 	}
 }
 
+#define THRESHOLD_DETECT_HOLES 5.0f
+
 template<int FR> __global__ void convolutionColsKernelRemoveNoise(int imageW, int imageH)
 {
 	const   int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
@@ -163,7 +165,7 @@ template<int FR> __global__ void convolutionColsKernelRemoveNoise(int imageW, in
 		}
 		int planeIdx;
 		surf2Dread( &planeIdx, depthmap2D_Surface2D, ix * 4, iy, cudaBoundaryModeClamp);
-		if( abs(sum - float(planeIdx)) > 2.0f )
+		if( abs(sum - float(planeIdx)) > THRESHOLD_DETECT_HOLES )
 		{
 			surf2Dwrite(-1, depthmap2D_Surface2D, ix * 4, iy, cudaBoundaryModeTrap); // write the unreliable depth index with a special number
 		}

@@ -47,7 +47,7 @@ link_directories(
 				)
 					
 
-cuda_add_executable(viewSyn        
+cuda_add_executable(viewSyn         
                       src/GLWidget.cpp src/GLWidget.h 
                       src/main.cpp                      
 					  src/image.h  src/image.cpp
@@ -66,6 +66,7 @@ cuda_add_executable(viewSyn
 					  src/utility.h 	src/utility.cpp
 					  src/GaussianBlurCUDA.h src/GaussianBlurCUDA.cu
 					  shader/renderScene.vert shader/renderScene.geom shader/renderScene.frag 
+					  src/ApproBilaterFilterHoleFilling.h  src/ApproBilaterFilterHoleFilling.cu
                       ${MOC_OUTFILES}
                       ${UI_OUTFILES}					  
               )
@@ -77,6 +78,7 @@ target_link_libraries(viewSyn
                       ${OPENGL_LIBRARIES}
 					  optimized opencv_highgui240.lib optimized opencv_core240.lib
 					  debug opencv_highgui240d.lib debug opencv_core240d.lib
+					  debug opencv_imgproc240d.lib optimized opencv_imgproc240.lib
 					  debug FlyCapture2d_v100.lib optimized FlyCapture2_v100.lib
 					  glew32.lib
 					  ${IMDEBUG_PATH}/imdebug.lib

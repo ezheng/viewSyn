@@ -4,6 +4,7 @@
 #include <QMutexLocker>
 #include <algorithm>
 #include <numeric> 
+#include <opencv/cv.h>
 
 #define PGR_SAFE_CALL(error) _pgrSafeCall(error, __FILE__, __LINE__)
 void _pgrSafeCall(FlyCapture2::Error err, std::string fileName, int lineNum)
@@ -37,8 +38,6 @@ allImageCaptureManager::allImageCaptureManager(std::vector<image>* ims):_numOfCa
 {
 	PGR_SAFE_CALL( _busMgr.GetNumOfCameras(&_numOfCams));
 
-	
-
 	if(_numOfCams == 0)
 	{
 		std::cout<< "None of Cams are detected" << std::endl; 
@@ -51,7 +50,7 @@ allImageCaptureManager::allImageCaptureManager(std::vector<image>* ims):_numOfCa
 	for(unsigned int i = 0; i<_numOfCams; i++)
 	{
 		//ims.push_back(cv::Mat());
-		oneCame *oneCam = new oneCame(i, _busMgr, &((*_allIms)[i]._image));
+		oneCame *oneCam = new oneCame(i, _busMgr, &((*_allIms)[i]._image), &((*_allIms)[i]));
 		_allCames.push_back(oneCam);
 	}
 
@@ -115,7 +114,6 @@ void allImageCaptureManager:: retrieveImgsAllParallel_SLOTS( )
 	//while(! allFlagsReady())
 	//{/*std::cout<<"waiting " << iii << std::endl; ii++;*/ }
 	//std::cout<< std::endl;
-		
 
 	for(unsigned int i = 0; i<_numOfCams; i++)
 		_allCames[i]->_readyFlag = false;	
@@ -235,26 +233,66 @@ void oneCame::retrieveImage()
 			std::cout<< " WARING: width not equals to stride" << __FILE__ << __LINE__ << std::endl;
 		
 		if(_imgOPENCV->empty())
-			_imgOPENCV->create(height, width, CV_8UC3);		
-		
-		unsigned char *dataPoint = _img.GetData();
-		for(int i = 0; i<height; i++)
 		{
-			//for(int i
-			for(int j = 0; j< width; j++)
-			{
-				int offsetOrig = i*stride + j * 3;
-				int offsetDest = (height - 1 - i) * _imgOPENCV->step + j * 3;
-				_imgOPENCV->data[offsetDest + 2] = dataPoint[offsetOrig];
-				_imgOPENCV->data[offsetDest ] = dataPoint[offsetOrig + 2];
-				_imgOPENCV->data[offsetDest + 1] = dataPoint[offsetOrig + 1];
-			}
+			_imgOPENCV->create(height, width, CV_8UC3);	
+			_tempImgOPENCV.create(height, width, CV_8UC3);			
+			
+			//cvInitUndistortMap(_myFormatImg->_K, _myFormatImg->_kc, &map1, &map2);
 		}
+		unsigned char *dataPoint = _img.GetData();
+
+		if(_myFormatImg->_kc.at<double>(0) != 0 || _myFormatImg->_kc.at<double>(1) != 0 || _myFormatImg->_kc.at<double>(2) != 0 ||
+			_myFormatImg->_kc.at<double>(3) != 0 || _myFormatImg->_kc.at<double>(4) != 0)
+		{
+			for(int i = 0; i<height; i++)
+			{
+				//for(int i
+				
+				for(int j = 0; j< width; j++)
+				{
+					int offsetOrig = i*stride + j * 3;
+					int offsetDest = (height - 1 - i) * _tempImgOPENCV.step + j * 3;
+					_tempImgOPENCV.data[offsetDest + 2] = dataPoint[offsetOrig];
+					_tempImgOPENCV.data[offsetDest ] = dataPoint[offsetOrig + 2];
+					_tempImgOPENCV.data[offsetDest + 1] = dataPoint[offsetOrig + 1];
+				}
+			}
+	// undistort image		
+		//	cv::undistort( _tempImgOPENCV, *_imgOPENCV, _myFormatImg->_K, _myFormatImg->_kc );
+			//static bool firstTime = true;
+			if(_firstTime)
+			{
+				_map1.create(height, width, CV_32FC1);
+				_map2.create(height, width, CV_32FC1);
+				cv::Mat identityMatrix = cv::Mat::eye(3, 3, CV_32F);
+				cv::initUndistortRectifyMap(_myFormatImg->_K, _myFormatImg->_kc, identityMatrix, _myFormatImg->_K, cv::Size(width, height), CV_32FC1, _map1, _map2);
+				_firstTime = false;
+			}
+			cv::remap( _tempImgOPENCV, *_imgOPENCV, _map1, _map2, cv::INTER_LINEAR);
+
+		}
+		else
+		{
+			for(int i = 0; i<height; i++)
+			{
+				//for(int i
+				for(int j = 0; j< width; j++)
+				{
+					int offsetOrig = i*stride + j * 3;
+					int offsetDest = (height - 1 - i) * _imgOPENCV->step + j * 3;
+					_imgOPENCV->data[offsetDest + 2] = dataPoint[offsetOrig];
+					_imgOPENCV->data[offsetDest ] = dataPoint[offsetOrig + 2];
+					_imgOPENCV->data[offsetDest + 1] = dataPoint[offsetOrig + 1];
+				}
+			}
+		}	
+
 	//	this->stopCapture();
 		{
 		QMutexLocker _qmt(&_mutex);
 		_readyFlag = true;
 		}
+
 
 }
 
@@ -268,13 +306,13 @@ void oneCame::restartCam()
 	unsigned int regVal = 0;
 	do 
 	{
-		Sleep(100);    
+		Sleep(100); 
 		PGR_SAFE_CALL(_cam.ReadRegister(k_cameraPower, &regVal));		
 	} while ((regVal & k_powerVal) == 0);
 
 }
 
-oneCame::oneCame(int id, FlyCapture2::BusManager &busMgr, cv::Mat* img):_cameraId(id), _imgOPENCV(img), _readyFlag(false)
+oneCame::oneCame(int id, FlyCapture2::BusManager &busMgr, cv::Mat* img, image *myFormatImg):_cameraId(id), _imgOPENCV(img), _readyFlag(false), _myFormatImg(myFormatImg), _firstTime(true)
 {
 	
 	PGR_SAFE_CALL(busMgr.GetCameraFromIndex(_cameraId, &_guid));

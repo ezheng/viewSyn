@@ -49,7 +49,7 @@ class oneCame:public QObject
 {
 	Q_OBJECT
 public:
-	oneCame(int id, FlyCapture2::BusManager &busMgr, cv::Mat* img);
+	oneCame(int id, FlyCapture2::BusManager &busMgr, cv::Mat* img, image* myFormatImg);
 	~oneCame();
 	float getFrameRate();	
 	void startCapture();
@@ -74,11 +74,18 @@ private:
 	FlyCapture2::Camera _cam;
 	FlyCapture2::Image _img;
 	cv::Mat* _imgOPENCV;
+	cv::Mat _tempImgOPENCV;
+
+	image *_myFormatImg;
 
 	unsigned int _cameraId;	// 0 , 1 ,2...
 	FlyCapture2::PGRGuid _guid;
 	QMutex _mutex;
 	
+	// for undistortion
+	cv::Mat _map1;
+	cv::Mat _map2;
+	bool _firstTime;
 public slots:		
 	void retrieveImageParallel();
 
