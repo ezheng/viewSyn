@@ -139,10 +139,12 @@ void GLWidgetAllImgs::updateVirtualView_slot(virtualImage virImg)
 
 
 void GLWidgetAllImgs :: resizeGL(int w, int h){
-	glViewport(0, 0, w, h);
-	_aspectRatio = static_cast<float>(w)/ static_cast<float>(h);
 	_windowWidth = w;
 	_windowHeight = h;	
+
+	glViewport(0, 0, w/2, h);
+	_aspectRatio = static_cast<float>(w/2)/ static_cast<float>(h);
+	
 
 	_virtualProjectionMatrix = glm::perspective( _fieldOfView, _aspectRatio, _nearPlane, _farPlane);
 }

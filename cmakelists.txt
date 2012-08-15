@@ -37,13 +37,16 @@ include_directories(
 					${GLEW_PATH}/include
 					${CUDA_TOOLKIT_INCLUDE}	
 					${IMDEBUG_PATH}
+					$ENV{FTSDK_DIR}/inc $ENV{KINECTSDK10_DIR}/inc
 					) 
 					
 
 link_directories(
 					${OPENCV_LIB_PATH}
 					${PTGRY}/lib
-					${GLEW_PATH}/lib					
+					${GLEW_PATH}/lib	
+					$ENV{FTSDK_DIR}/lib/x86
+					$ENV{KINECTSDK10_DIR}/lib/x86					
 				)
 					
 
@@ -67,6 +70,9 @@ cuda_add_executable(viewSyn
 					  src/GaussianBlurCUDA.h src/GaussianBlurCUDA.cu
 					  shader/renderScene.vert shader/renderScene.geom shader/renderScene.frag 
 					  src/ApproBilaterFilterHoleFilling.h  src/ApproBilaterFilterHoleFilling.cu
+					  src/FTHelper.cpp src/FTHelper.h
+					  src/KinectSensor.cpp src/KinectSensor.h
+					 
                       ${MOC_OUTFILES}
                       ${UI_OUTFILES}					  
               )
@@ -80,8 +86,11 @@ target_link_libraries(viewSyn
 					  debug opencv_highgui240d.lib debug opencv_core240d.lib
 					  debug opencv_imgproc240d.lib optimized opencv_imgproc240.lib
 					  debug FlyCapture2d_v100.lib optimized FlyCapture2_v100.lib
+					  FaceTrackLib.lib Kinect10.lib imdebug.lib					  
 					  glew32.lib
 					  ${IMDEBUG_PATH}/imdebug.lib
 					  ${CUDA_CUDA_LIBRARY}
 					  ${CUDA_CUDART_LIBRARY}
                       )
+					  
+add_definitions(-DUNICODE -D_UNICODE)
