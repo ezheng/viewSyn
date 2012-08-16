@@ -66,7 +66,7 @@ public slots:
 	void psNearPlaneChanged(double nearPlanePos);
 	void psGSSigmaChanged(double sigma);
 	void psNumPlaneChanged(double numOfPlanes);
-
+	void newPosKinect_SLOT(float posChagneX, float posChangeY);
 
 private:
 	VSShaderLib _shaderHandle;
@@ -128,11 +128,12 @@ private:
 
 	texture2D _renderedImage1;
 	texture2D _renderedImage2;
+	texture2D _renderedImage3;
 
 
 	bool _display_Color_Depth;
 
-	void displayImage(GLuint texture, int imageWidth, int imageHeight);
+	void displayImage(GLuint texture, int imageWidth, int imageHeight, float percent = 1.0f);
 
 	std::string _warpingGeoFileName;
 	std::string _warpingFragFileName;
@@ -161,6 +162,7 @@ private:
 
 signals:
 	void updateGL_SIGNAL();
+	
 };
 
 

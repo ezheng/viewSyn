@@ -18,7 +18,7 @@ PVOID _opt = NULL;
 FTHelper::FTHelper()
 {
     m_pFaceTracker = 0;
-    m_hWnd = NULL;
+    //m_hWnd = NULL;
     m_pFTResult = NULL;
     m_colorImage = NULL;
     m_depthImage = NULL;
@@ -40,6 +40,28 @@ FTHelper::FTHelper()
 FTHelper::~FTHelper()
 {
     //Stop();
+
+	m_pFaceTracker->Release();
+    m_pFaceTracker = NULL;
+
+    if(m_colorImage)
+    {
+        m_colorImage->Release();
+        m_colorImage = NULL;
+    }
+
+    if(m_depthImage) 
+    {
+        m_depthImage->Release();
+        m_depthImage = NULL;
+    }
+
+    if(m_pFTResult)
+    {
+        m_pFTResult->Release();
+        m_pFTResult = NULL;
+    }
+    m_KinectSensor.Release();
 }
 
 HRESULT FTHelper::Init(HWND hWnd, FTHelperCallBack callBack, PVOID callBackParam, 
@@ -49,7 +71,7 @@ HRESULT FTHelper::Init(HWND hWnd, FTHelperCallBack callBack, PVOID callBackParam
     {
         return E_INVALIDARG;
     }
-    m_hWnd = hWnd;
+  //  m_hWnd = hWnd;
     m_CallBack = callBack;
     m_CallBackParam = callBackParam;
     m_ApplicationIsRunning = true;
@@ -76,8 +98,7 @@ HRESULT FTHelper::Init(NUI_IMAGE_TYPE depthType, NUI_IMAGE_RESOLUTION depthRes, 
     m_colorType = colorType;
     m_colorRes = colorRes;
  //   m_hFaceTrackingThread = CreateThread(NULL, 0, FaceTrackingStaticThread, (PVOID)this, 0, 0);
-	FaceTrackingThread();
-	//FaceTrackingStaticThread();
+	//FaceTrackingThread(); by Enliang
     return S_OK;
 }
 
@@ -93,7 +114,9 @@ HRESULT FTHelper::Init(NUI_IMAGE_TYPE depthType, NUI_IMAGE_RESOLUTION depthRes, 
 //}
 
 #include <iostream>
-#include <imdebug.h>
+#ifndef _WIN64
+	#include <imdebug.h>
+#endif
 BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
 {
     if (pResult != NULL && SUCCEEDED(pResult->GetStatus()))
@@ -135,10 +158,7 @@ BOOL FTHelper::SubmitFraceTrackingResult(IFTResult* pResult)
                     POINT rightTop = {rectFace.right - 1, rectFace.top};
                     POINT leftBottom = {rectFace.left, rectFace.bottom - 1};
                     POINT rightBottom = {rectFace.right - 1, rectFace.bottom - 1};
-					std::cout<< "leftTop: " << leftTop.x << " " << leftTop.y << std::endl;
-					std::cout<< "rightTop: " << rightTop.x << " " << rightTop.y << std::endl;
-					std::cout<< "leftBottom: " << leftBottom.x << " " << leftBottom.y << std::endl;
-					std::cout<< "rightBottom: " << rightBottom.x << " " << rightBottom.y << std::endl;
+					
 
                     //UINT32 nColor = 0xff00ff;
                    // SUCCEEDED(hr = pColorImg->DrawLine(leftTop, rightTop, nColor, 1)) &&
@@ -212,22 +232,87 @@ void FTHelper::CheckCameraInput()
     }
 
     m_LastTrackSucceeded = SUCCEEDED(hrFT) && SUCCEEDED(m_pFTResult->GetStatus());
+	RECT rectFace; rectFace.left = -1; rectFace.right = -1; rectFace.bottom = -1; rectFace.top = -1;
+	unsigned char* data = m_colorImage->GetBuffer();;
     if (m_LastTrackSucceeded)
     {
-		unsigned int buffersize = m_colorImage->GetBufferSize();
-		std::cout<< "the size of the buffer is: " << buffersize << std::endl;
-		std::cout<< "the height and width of the image is: " << m_colorImage->GetHeight() << " " << m_colorImage->GetWidth() << std::endl;
-		//unsigned char *data = new unsigned char[buffersize];
-		std::cout<< sizeof(unsigned short) << std::endl;
-		unsigned char* data = m_colorImage->GetBuffer();
-		imdebug("rgba w=%d h=%d %p", m_colorImage->GetWidth(), m_colorImage->GetHeight(), data);
-        SubmitFraceTrackingResult(m_pFTResult);
+		//unsigned int buffersize = m_colorImage->GetBufferSize();
+		//std::cout<< "the size of the buffer is: " << buffersize << std::endl;
+		//std::cout<< "the height and width of the image is: " << m_colorImage->GetHeight() << " " << m_colorImage->GetWidth() << std::endl;
+		//std::cout<< " the stride: " << m_colorImage->GetStride() << std::endl;
+		//std::cout<< sizeof(unsigned short) << std::endl;
+		
+		//imdebug("rgba w=%d h=%d %p", m_colorImage->GetWidth(), m_colorImage->GetHeight(), data);
+        //SubmitFraceTrackingResult(m_pFTResult);		
+		HRESULT hr = m_pFTResult->GetFaceRect(&rectFace);
+		// draw rectangle on the image:
+		drawVLines(data, m_colorImage->GetStride(), rectFace.left, rectFace.top, rectFace.bottom, m_colorImage->GetWidth());
+		drawVLines(data, m_colorImage->GetStride(), rectFace.right, rectFace.top, rectFace.bottom, m_colorImage->GetWidth());
+		drawHLines(data, m_colorImage->GetStride(), rectFace.top, rectFace.left, rectFace.right, m_colorImage->GetHeight());
+		drawHLines(data, m_colorImage->GetStride(), rectFace.bottom, rectFace.left, rectFace.right, m_colorImage->GetHeight());
+		
+	//	if (SUCCEEDED(hr))
+    //    {
+			/*POINT leftTop = {rectFace.left, rectFace.top};
+	POINT rightTop = {rectFace.right - 1, rectFace.top};
+	POINT leftBottom = {rectFace.left, rectFace.bottom - 1};
+	POINT rightBottom = {rectFace.right - 1, rectFace.bottom - 1};
+	std::cout<< "leftTop: " << leftTop.x << " " << leftTop.y << std::endl;
+	std::cout<< "rightTop: " << rightTop.x << " " << rightTop.y << std::endl;
+	std::cout<< "leftBottom: " << leftBottom.x << " " << leftBottom.y << std::endl;
+	std::cout<< "rightBottom: " << rightBottom.x << " " << rightBottom.y << std::endl;*/
+			
+	//	}
     }
     else
-    {
+    {		
         m_pFTResult->Reset();
     }
+	
+	emit drawKinect_SIGNALS( data, m_colorImage->GetWidth(), m_colorImage->GetHeight(), rectFace.left, rectFace.right -1 , rectFace.bottom, rectFace.top - 1 );
+
     SetCenterOfImage(m_pFTResult);
+
+}
+
+void FTHelper::drawHLines(unsigned char * data, int stride, int row, int colStart, int colEnd, int imageHeight)
+{
+	for(int j = -1; j <= 1; j++)
+	{
+		int actualRow = row + j;
+		if(actualRow > 0 && actualRow<imageHeight)
+		{
+			int base = (actualRow) * stride;
+			for(int i = colStart+1; i<colEnd; i++)
+			{
+				data[base + i * 4 + 0] = 255;
+				data[base + i * 4 + 1] = 255;
+				data[base + i * 4 + 2] = 255;
+				data[base + i * 4 + 3] = 255;
+			}
+		}			
+	}		
+}
+
+void FTHelper::drawVLines(unsigned char * data, int stride, int col, int rowStart, int rowEnd, int imageWidth)
+{
+	
+	for(int j = -1; j<=1; j++)
+	{
+		int actualCol = col + j;
+		if(actualCol > 0 && actualCol<imageWidth)
+		{
+			int offset = actualCol * 4;	
+			for(int i = rowStart+1; i<rowEnd; i++)
+			{
+				int base = i * stride;
+				data[base + offset + 0] = 255;
+				data[base + offset + 1] = 255;
+				data[base + offset + 2] = 255;
+				data[base + offset + 3] = 255;
+			}
+		}
+	}	
 }
 
 //DWORD WINAPI FTHelper::FaceTrackingStaticThread(PVOID lpParam)
@@ -240,8 +325,12 @@ void FTHelper::CheckCameraInput()
 //    return 0;
 //}
 
-DWORD WINAPI FTHelper::FaceTrackingThread()
+void FTHelper::FaceTrackingThread()
 {
+	//std::cout<<"current threadId GLWidgetAllImgs" << GetCurrentThreadId() << std::endl;
+
+	this->Init(NUI_IMAGE_TYPE_DEPTH_AND_PLAYER_INDEX, NUI_IMAGE_RESOLUTION_320x240, true, true, NUI_IMAGE_TYPE_COLOR, NUI_IMAGE_RESOLUTION_640x480, false);
+
     FT_CAMERA_CONFIG videoConfig;
     FT_CAMERA_CONFIG depthConfig;
     FT_CAMERA_CONFIG* pDepthConfig = NULL;
@@ -262,16 +351,16 @@ DWORD WINAPI FTHelper::FaceTrackingThread()
         WCHAR errorText[MAX_PATH];
         ZeroMemory(errorText, sizeof(WCHAR) * MAX_PATH);
         wsprintf(errorText, L"Could not initialize the Kinect sensor. hr=0x%x\n", hr);
-        MessageBoxW(m_hWnd, errorText, L"Face Tracker Initialization Error\n", MB_OK);
-        return 1;
+        //MessageBoxW(m_hWnd, errorText, L"Face Tracker Initialization Error\n", MB_OK);
+        return ;
     }
 
     // Try to start the face tracker.
     m_pFaceTracker = FTCreateFaceTracker(_opt);
     if (!m_pFaceTracker)
     {
-        MessageBoxW(m_hWnd, L"Could not create the face tracker.\n", L"Face Tracker Initialization Error\n", MB_OK);
-        return 2;
+      //  MessageBoxW(m_hWnd, L"Could not create the face tracker.\n", L"Face Tracker Initialization Error\n", MB_OK);
+        return ;
     }
 
     hr = m_pFaceTracker->Initialize(&videoConfig, pDepthConfig, NULL, NULL); 
@@ -281,23 +370,23 @@ DWORD WINAPI FTHelper::FaceTrackingThread()
         GetCurrentDirectoryW(ARRAYSIZE(path), path);
         wsprintf(buffer, L"Could not initialize face tracker (%s). hr=0x%x", path, hr);
 
-        MessageBoxW(m_hWnd, /*L"Could not initialize the face tracker.\n"*/ buffer, L"Face Tracker Initialization Error\n", MB_OK);
+       // MessageBoxW(m_hWnd, /*L"Could not initialize the face tracker.\n"*/ buffer, L"Face Tracker Initialization Error\n", MB_OK);
 
-        return 3;
+        return ;
     }
 
     hr = m_pFaceTracker->CreateFTResult(&m_pFTResult);
     if (FAILED(hr) || !m_pFTResult)
     {
-        MessageBoxW(m_hWnd, L"Could not initialize the face tracker result.\n", L"Face Tracker Initialization Error\n", MB_OK);
-        return 4;
+       // MessageBoxW(m_hWnd, L"Could not initialize the face tracker result.\n", L"Face Tracker Initialization Error\n", MB_OK);
+        return;
     }
 
     // Initialize the RGB image.
     m_colorImage = FTCreateImage();
     if (!m_colorImage || FAILED(hr = m_colorImage->Allocate(videoConfig.Width, videoConfig.Height, FTIMAGEFORMAT_UINT8_B8G8R8X8)))
     {
-        return 5;
+        return;
     }
     
     if (pDepthConfig)
@@ -305,22 +394,28 @@ DWORD WINAPI FTHelper::FaceTrackingThread()
         m_depthImage = FTCreateImage();
         if (!m_depthImage || FAILED(hr = m_depthImage->Allocate(depthConfig.Width, depthConfig.Height, FTIMAGEFORMAT_UINT16_D13P3)))
         {
-            return 6;
+            return;
         }
     }
 
-    SetCenterOfImage(NULL);
-    m_LastTrackSucceeded = false;
+ //   SetCenterOfImage(NULL);
+ //   m_LastTrackSucceeded = false;
 
-    while (m_ApplicationIsRunning)
-    {
-        CheckCameraInput();
-        InvalidateRect(m_hWnd, NULL, FALSE);
-        UpdateWindow(m_hWnd);
-        Sleep(16);
-    }
+ //  // while (m_ApplicationIsRunning)
+ //  // {
+	//while(!m_LastTrackSucceeded)
+	//{ 
+	//	CheckCameraInput();
+	//}
+	
+	doFaceTracking_SLOT();
 
-    m_pFaceTracker->Release();
+       // InvalidateRect(m_hWnd, NULL, FALSE);
+      // UpdateWindow(m_hWnd);
+    //    Sleep(16);
+  //  }
+
+    /*m_pFaceTracker->Release();
     m_pFaceTracker = NULL;
 
     if(m_colorImage)
@@ -340,8 +435,28 @@ DWORD WINAPI FTHelper::FaceTrackingThread()
         m_pFTResult->Release();
         m_pFTResult = NULL;
     }
-    m_KinectSensor.Release();
-    return 0;
+    m_KinectSensor.Release();*/
+    return;
+}
+
+void FTHelper::doFaceTracking_SLOT()
+{
+	 SetCenterOfImage(NULL);
+	 
+	 static bool firstStart = true;
+	 if(firstStart)
+	 {
+		 firstStart = false;
+		m_LastTrackSucceeded = false;
+	 }
+
+   // while (m_ApplicationIsRunning)
+   // {
+	//while(!m_LastTrackSucceeded)
+//	{ 
+		CheckCameraInput();
+		Sleep(16);
+//	}
 }
 
 HRESULT FTHelper::GetCameraConfig(FT_CAMERA_CONFIG* cameraConfig)

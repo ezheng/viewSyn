@@ -52,6 +52,7 @@ private:
 	QThread _CamCaptureThread; 
 	void readCalibrationData(std::string fileName, std::vector<image> * allImages, std::vector<image>* allImagesBackBuffer);
 
+	QThread _allImageThread;
 
 private slots:
 	void openFile_slot();

@@ -115,13 +115,13 @@ void image::setModelViewMatrix()
 
 
 	//std::cout<< "optCenterPos" << std::endl;
-	for(int i = 0; i<3; i++)
+	/*for(int i = 0; i<3; i++)
 		std::cout<< _optCenterPos[i]<< " ";
 	std::cout<<std::endl;
 	std::cout<< "lookAtPos: " << std::endl;
 	for(int i = 0; i<3; i++)
 		std::cout<< _lookAtPos[i]<< " ";
-	std::cout<<std::endl;
+	std::cout<<std::endl;*/
 
 
 	_upDir = glm::vec3(0.0f,-1.0f,0.0f);

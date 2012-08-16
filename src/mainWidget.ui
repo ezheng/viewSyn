@@ -151,7 +151,7 @@
    <property name="geometry">
     <rect>
      <x>50</x>
-     <y>500</y>
+     <y>520</y>
      <width>71</width>
      <height>31</height>
     </rect>
@@ -164,7 +164,7 @@
    <property name="geometry">
     <rect>
      <x>50</x>
-     <y>540</y>
+     <y>560</y>
      <width>271</width>
      <height>31</height>
     </rect>
@@ -177,7 +177,7 @@
    <property name="geometry">
     <rect>
      <x>450</x>
-     <y>520</y>
+     <y>540</y>
      <width>168</width>
      <height>22</height>
     </rect>
@@ -199,7 +199,7 @@
        <double>1.000000000000000</double>
       </property>
       <property name="value">
-       <double>800.000000000000000</double>
+       <double>600.000000000000000</double>
       </property>
      </widget>
     </item>
@@ -209,7 +209,7 @@
    <property name="geometry">
     <rect>
      <x>450</x>
-     <y>550</y>
+     <y>570</y>
      <width>168</width>
      <height>22</height>
     </rect>
@@ -241,7 +241,7 @@
    <property name="geometry">
     <rect>
      <x>450</x>
-     <y>580</y>
+     <y>600</y>
      <width>168</width>
      <height>22</height>
     </rect>
@@ -276,7 +276,7 @@
    <property name="geometry">
     <rect>
      <x>450</x>
-     <y>486</y>
+     <y>506</y>
      <width>168</width>
      <height>22</height>
     </rect>

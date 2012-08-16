@@ -3,15 +3,22 @@
 //     Copyright (c) Microsoft Corporation.  All rights reserved.
 // </copyright>
 //------------------------------------------------------------------------------
-
-#pragma once
+#ifndef FTHELPER_H
+#define FTHELPER_H
+//#pragma once
+#include <QObject>
 #include <FaceTrackLib.h>
 #include "KinectSensor.h"
 
+
 typedef void (*FTHelperCallBack)(PVOID lpParam);
 
-class FTHelper
+
+
+
+class FTHelper: public QObject
 {
+Q_OBJECT
 public:
     FTHelper();
     ~FTHelper();
@@ -36,7 +43,7 @@ private:
     KinectSensor                m_KinectSensor;
     BOOL                        m_KinectSensorPresent;
     IFTFaceTracker*             m_pFaceTracker;
-    HWND                        m_hWnd;
+    //HWND                        m_hWnd;
     IFTResult*                  m_pFTResult;
     IFTImage*                   m_colorImage;
     IFTImage*                   m_depthImage;
@@ -60,6 +67,19 @@ private:
     BOOL SubmitFraceTrackingResult(IFTResult* pResult);
     void SetCenterOfImage(IFTResult* pResult);
     void CheckCameraInput();
-    DWORD WINAPI FaceTrackingThread();
+
+	void drawHLines(unsigned char * data, int stride, int row, int colStart, int colEnd, int imageHeight);
+	void drawVLines(unsigned char * data, int stride, int col, int rowStart, int rowEnd, int imageWidth);
+
+
+public slots:
+    void FaceTrackingThread();
+	void doFaceTracking_SLOT();
 //    static DWORD WINAPI FaceTrackingStaticThread(PVOID lpParam);
+
+signals:
+	void drawKinect_SIGNALS(  unsigned char *data, int width, int height, int left, int right, int bottom, int top);
+
 };
+
+#endif

@@ -117,8 +117,8 @@ void viewSynForm::setUpImages(std::vector<image>* ims, QGLWidget* widgetForConte
 		if(_glWidgets[i]->isHidden())
 			_glWidgets[i]->show();
 	}
-	for(int i = numOfImages; i<numOfWidgets; i++)
-		_glWidgets[i]->hide();
+	//for(int i = numOfImages; i<numOfWidgets; i++)
+	//	_glWidgets[i]->hide();
 }
 
 viewSynForm::~viewSynForm(void)

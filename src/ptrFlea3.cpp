@@ -122,7 +122,9 @@ void allImageCaptureManager:: retrieveImgsAllParallel_SLOTS( )
 	// wait here:
 	while(! allFlagsReady())
 	{/*std::cout<<"waiting " << iii << std::endl; ii++;*/ }
+#ifdef _DEBUG 
 	std::cout<< std::endl;
+#endif
 	// emit signal to the main thread to notify 
 	emit imageReady_SIGNAL();
 
@@ -216,15 +218,11 @@ void oneCame::retrieveImage()
 	//std::cout<< "camera: " << _cameraId << "finish capturing." <<std::endl;
 
 	  FlyCapture2::TimeStamp t1 = _img.GetTimeStamp();
+
+#ifdef _DEBUG 
 	 std::cout<< "camera: " << _cameraId << " second: " << t1.seconds << " microseconds" << ": " << t1.microSeconds 
 		  << " current thread id" << GetCurrentThreadId() << std::endl;
-	// FlyCapture2::TimeStamp t2 = rawImage[2].GetTimeStamp();
-	// std::cout<< "second2: " << t2.seconds << " millionSeconds1: " << t2.microSeconds<< std::endl;
-
-		// std::cout<< "second: " << t1.seconds - t.seconds << " millionSeconds: " << static_cast<unsigned int>(t1.microSeconds) - static_cast<unsigned int>(t.microSeconds)<< std::endl;
-      //PGR_SAFE_CALL( rawImage.Convert( FlyCapture2::PIXEL_FORMAT_MONO8, &convertedImage ));
-	  //PGR_SAFE_CALL(_img.Save("hello2.jpg"));	
-	// copy images
+#endif
 
 		int width = _img.GetCols();
 		int height = _img.GetRows();

@@ -76,6 +76,8 @@ void mainWindowForm::startViewSynthesis_slot()
 	QObject::connect(_imagesForm->ui.doubleSpinBox_planeNum, SIGNAL(valueChanged(double)), _virtualViewForm, SLOT(psNumPlaneChanged(double)), Qt::UniqueConnection); 
 	QObject::connect(_imagesForm->ui.doubleSpinBox_sigma, SIGNAL(valueChanged(double)), _virtualViewForm, SLOT(psGSSigmaChanged(double)), Qt::UniqueConnection);
 
+	QObject::connect( _allImagesForm, SIGNAL(newPosKinect_SIGNAL(float, float)), _virtualViewForm, SLOT(newPosKinect_SLOT(float, float)), Qt::UniqueConnection);
+
 	_virtualViewForm->psFarPlaneChanged(_imagesForm->ui.doubleSpinBox_farPlane->value());
 	_virtualViewForm->psNearPlaneChanged(_imagesForm->ui.doubleSpinBox_nearPlane->value());
 	_virtualViewForm->psNumPlaneChanged(_imagesForm->ui.doubleSpinBox_planeNum->value());
@@ -165,6 +167,7 @@ void mainWindowForm::retrieveImages()
 			}
 			init = false;
 		}
+		
 		_imagesForm->setUpImages(_allImages, _widgetForContext);		
 		
 		//if(!_wasCapturing)
@@ -172,12 +175,12 @@ void mainWindowForm::retrieveImages()
 		//	_allImagesForm->upDateParam();
 		//	_wasCapturing = true;
 		//emit redrawCameraPoses();	
-		//}			
-		_allImagesForm->updateGL();
-		emit redrawImages();
-		
-	}
+		//}	
 
+		_allImagesForm->updateGL();
+		
+		emit redrawImages();
+	}
 	
 }
 
@@ -255,6 +258,11 @@ void mainWindowForm::showImageWindow()
 	subWindow1->setAttribute(Qt::WA_DeleteOnClose);
     ui.mdiArea->addSubWindow(subWindow1);
 	subWindow1->show();
+
+//	subWindow1->moveToThread(&_allImageThread);
+//	_allImageThread.start();
+
+
 }
 
 void mainWindowForm::readCalibrationData(std::string fileName, std::vector<image> * allImages, std::vector<image>* allImagesBackBuffer)
