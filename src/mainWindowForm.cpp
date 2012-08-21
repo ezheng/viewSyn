@@ -19,14 +19,18 @@ mainWindowForm::mainWindowForm(void): _busHandler(NULL), _imagesForm(NULL), _all
 	QObject::connect(ui.actionOpen, SIGNAL(triggered()), this, SLOT(openFile_slot()));	
 	QObject::connect(ui.actionStart_Capture, SIGNAL(triggered()), this, SLOT(startCapture_slot()));
 	QObject::connect(ui.actionView_Synthesis, SIGNAL(triggered()), this, SLOT(startViewSynthesis_slot()));
-	
+	QObject::connect(ui.actionLoad_Cam_Param, SIGNAL(triggered()), this, SLOT(loadCamParam_slot()), Qt::QueuedConnection);
 
 	
-	_timer.setInterval(30);
-	QObject::connect(&_timer, SIGNAL(timeout()), this, SLOT(retrieveImages()), Qt::QueuedConnection);  
+	//_timer.setInterval(30);
+	//QObject::connect(&_timer, SIGNAL(timeout()), this, SLOT(retrieveImages()), Qt::QueuedConnection);  
 
 	_allImages = new std::vector<image>;
 	_allImagesBackBuffer = new std::vector<image>;
+
+	std::cout<< "right after definition: _allImages: " << _allImages << std::endl;
+	std::cout<< "right after definition: _allImagesBackBuffer: " << _allImagesBackBuffer << std::endl;
+
 
 	QGLFormat format;
 	format.setVersion(4,2);
@@ -52,6 +56,8 @@ void mainWindowForm::startViewSynthesis_slot()
 	//--------------------------------------------------------------------
 	QMdiSubWindow *subWindow2 = new QMdiSubWindow();	
 	QObject::connect( _virtualViewForm, SIGNAL(updateVirtualView_signal(virtualImage)), _allImagesForm, SLOT(updateVirtualView_slot(virtualImage)));
+	//
+	QObject::connect(this, SIGNAL(redrawImages()), _virtualViewForm, SLOT(updateGL()), Qt::UniqueConnection);
 	
 
 	std::cout<< "width: " << _virtualViewForm->geometry().width() << std::endl;
@@ -70,6 +76,8 @@ void mainWindowForm::startViewSynthesis_slot()
 	QObject::connect(_imagesForm->ui.doubleSpinBox_planeNum, SIGNAL(valueChanged(double)), _virtualViewForm, SLOT(psNumPlaneChanged(double)), Qt::UniqueConnection); 
 	QObject::connect(_imagesForm->ui.doubleSpinBox_sigma, SIGNAL(valueChanged(double)), _virtualViewForm, SLOT(psGSSigmaChanged(double)), Qt::UniqueConnection);
 
+	QObject::connect( _allImagesForm, SIGNAL(newPosKinect_SIGNAL(float, float, bool)), _virtualViewForm, SLOT(newPosKinect_SLOT(float, float, bool)), Qt::UniqueConnection);
+
 	_virtualViewForm->psFarPlaneChanged(_imagesForm->ui.doubleSpinBox_farPlane->value());
 	_virtualViewForm->psNearPlaneChanged(_imagesForm->ui.doubleSpinBox_nearPlane->value());
 	_virtualViewForm->psNumPlaneChanged(_imagesForm->ui.doubleSpinBox_planeNum->value());
@@ -85,8 +93,10 @@ mainWindowForm::~mainWindowForm(void)
 	if(_widgetForContext != NULL)
 		delete _widgetForContext;
 
-	delete _allImages;
-	delete _allImagesBackBuffer;
+	if(_allImages != NULL)
+		delete _allImages;
+	if(_allImagesBackBuffer != NULL)
+		delete _allImagesBackBuffer;
 	//if(_virtualViewForm != NULL)
 	//	delete _virtualViewForm;
 }
@@ -98,62 +108,102 @@ void mainWindowForm::startCapture_slot()
 	{
 		delete _busHandler;
 		_busHandler = NULL;
-		_timer.stop();
+		//_timer.stop();
 	}
 	if(_busHandler == NULL)
-	{			
-		_busHandler = new allImageCaptureManager(_allImagesBackBuffer); 
-	}
+	{
+		// read the calibration data
+		
+
+		_busHandler = new allImageCaptureManager(_allImages); 
+		_allImagesBackBuffer->resize( _busHandler->returnNumberOfCams());
+				
+		_busHandler->moveToThread(&_CamCaptureThread);
+		QObject::connect( this, SIGNAL(retrieveImgsAllParallel_SIGNAL()), _busHandler, SLOT(retrieveImgsAllParallel_SLOTS()));
+		QObject::connect( _busHandler, SIGNAL(imageReady_SIGNAL()), this, SLOT(retrieveImages()));
+		_CamCaptureThread.start();
+
+		// triggering the capture process
+		emit retrieveImgsAllParallel_SIGNAL();
+		
+	} 
+
 	if(_busHandler->returnNumberOfCams() == 0)
 	{
 		delete _busHandler;
 		_busHandler = NULL;
 		return;
 	}
-	// capture
-	retrieveImages();
-	_timer.start();
+	
 }
 
+
+// this function is executed when the cameraReady is signalled.
 void mainWindowForm::retrieveImages()
 {
 	if(_busHandler == NULL || _busHandler->returnNumberOfCams() ==0)
 		 return;
-	//capture
+	
+	_busHandler->swapBuffer(&_allImages);
+	emit retrieveImgsAllParallel_SIGNAL();	// after obtaining the new image(by swapping the buffer), tell the camera to capture image
 
-	{
-		//QMutexLocker qml(_imageMutex );
-		_allImages = _busHandler->retrieveImgsAllParallel(_allImages);
-	}
-
+	//---------------------------------------------------------------------
 	if(_imagesForm == NULL)
 	{
 		_imagesForm = new viewSynForm(&_allImages, _widgetForContext/*, _imageMutex*/);
 		showImageWindow();
-		// connects the widgets for setting up plane-sweeping param
-
-		_wasCapturing = true;
+		//_wasCapturing = true;
 	}
 	else
 	{
-		_imagesForm->setUpImages(_allImages, _widgetForContext);		
-		QObject::connect(this, SIGNAL(redrawCameraPoses()), _allImagesForm, SLOT(updateGL()), Qt::UniqueConnection);
-		if(!_wasCapturing)
+		static bool init = true;
+		if(init)
 		{
-			_allImagesForm->upDateParam();
-			_wasCapturing = true;
-			emit redrawCameraPoses();	
-		}		
-		for(int i = 0; i< _imagesForm->_glWidgets.size(); i++)
-		{
-			QObject::connect(this, SIGNAL(redrawImages()), _imagesForm->_glWidgets[i] , SLOT(updateGL()), Qt::UniqueConnection);
+			//QObject::connect(this, SIGNAL(redrawCameraPoses()), _allImagesForm, SLOT(updateGL()), Qt::UniqueConnection);
+			
+			for(int i = 0; i< _imagesForm->_glWidgets.size(); i++)
+			{
+				QObject::connect(this, SIGNAL(redrawImages()), _imagesForm->_glWidgets[i] , SLOT(updateGL()), Qt::UniqueConnection);
+			}
+			init = false;
 		}
+		
+		_imagesForm->setUpImages(_allImages, _widgetForContext);		
+		
+		//if(!_wasCapturing)
+		//{
+		//	_allImagesForm->upDateParam();
+		//	_wasCapturing = true;
+		//emit redrawCameraPoses();	
+		//}	
+
+		_allImagesForm->updateGL();
+		
 		emit redrawImages();
 	}
-	//QObject::connect(this, SIGNAL(retrieveOneShot()), this , SLOT(retrieveImages()), Qt::UniqueConnection);	
-	//emit retrieveOneShot();
+	
 }
 
+void mainWindowForm::loadCamParam_slot()
+{
+	QString qFileName = QFileDialog::getOpenFileName(this,
+     //tr("Open Image"), "C:\\Enliang\\data\\middleBury\\temple", tr("Image List Files (*.txt)"));
+	  tr("Open Image"), "C:\\Enliang\\data\\fountain_dense\\fromLiang\\images\\quarter_size", tr("Image List Files (*.txt)"));
+	std::string fileName = qFileName.toLocal8Bit().constData();
+
+	if(_allImages == _allImagesBackBuffer)
+	{
+		std::cout<< "buffer error" << std::endl;
+	}
+	//std::cout<< "_allImages: " << _allImages << std::endl;
+	//std::cout<< "_allImagesBackBuffer: " << _allImagesBackBuffer << std::endl;
+		
+	readCalibrationData(fileName, _allImages, _allImagesBackBuffer);
+
+	_allImagesForm->upDateParam();
+
+
+}
 
 void mainWindowForm::openFile_slot()
 {	
@@ -165,10 +215,10 @@ void mainWindowForm::openFile_slot()
 	std::cout << fileName << std::endl;
 	if(fileName.empty())
 		return;
-	//-------------
+	//------------------
 	readImages(fileName);
 
-	_wasCapturing = false;
+	//_wasCapturing = false;
 	// show the new window
 	if(_imagesForm == NULL)
 	{	
@@ -209,6 +259,80 @@ void mainWindowForm::showImageWindow()
 	subWindow1->setAttribute(Qt::WA_DeleteOnClose);
     ui.mdiArea->addSubWindow(subWindow1);
 	subWindow1->show();
+
+//	subWindow1->moveToThread(&_allImageThread);
+//	_allImageThread.start();
+
+
+}
+
+void mainWindowForm::readCalibrationData(std::string fileName, std::vector<image> * allImages, std::vector<image>* allImagesBackBuffer)
+{
+	 std::ifstream in( fileName);
+	 if(!in.is_open())
+	 {
+		return;
+	 }
+	 unsigned int numOfImages; 
+	 in>>numOfImages;
+	 //if(numOfImages != _allImages
+	 if(numOfImages > _allImages->size())
+	 {std::cout<< "number of images does not match. There might be some errors" << std::endl; return;}
+
+	 //_allImages->clear();
+	 for(unsigned int i = 0; i < numOfImages; i++)
+	 {
+		std::string imageName;
+		in>>imageName;
+		double K[9], R[9], T[9];
+		for(int j = 0; j < 9; j++)
+			in>>K[j];		
+		for(int j = 0; j < 9; j++)
+			in>>R[j];
+		for(int j = 0; j < 3; j++)
+			in>>T[j];
+
+		// update the K, R, T of im
+
+
+		(*allImages)[i].updateCamParam(K, R, T);
+		(*allImagesBackBuffer)[i].updateCamParam(K,R,T);
+
+	
+		//image im(imageName, K, R, T);				
+		//if(im._image.empty())
+		//{ std::cout<< "images " << im._imageName <<" cannot be found" << std::endl; }
+		//else
+		//_allImages->push_back(im);
+	 }
+	 //
+	 int numOfImages_2; in >> numOfImages_2;
+	  
+	 
+	 if(numOfImages_2 == numOfImages)
+	 {
+		for(unsigned int i =0; i < numOfImages; i++)
+		{
+			double kc[5];
+			for(int j = 0; j<5; j++)
+				in>>kc[j];
+			(*allImages)[i].setupDistortionParam(kc);
+			(*allImagesBackBuffer)[i].setupDistortionParam(kc);
+		}
+	 }
+	 // load the color calibration table 
+	 int numOfImages_3; in >> numOfImages_3;
+	 if(numOfImages_3 == numOfImages)
+	 {
+		for(unsigned int i = 0; i < numOfImages; i++)
+		{
+			for(unsigned int j = 0; j<256; j++)
+			{
+				in >> (*allImages)[i]._LUT[j];	
+			}
+		}
+	 }
+	 in.close();
 }
 
 void mainWindowForm::readImages(std::string fileName)
@@ -241,7 +365,8 @@ void mainWindowForm::readImages(std::string fileName)
 		//
 		image im(imageName, K, R, T);				
 		if(im._image.empty())
-		{ std::cout<< "images " << im._imageName <<" cannot be found" << std::endl; return;}
+		{ std::cout<< "images " << im._imageName <<" cannot be found" << std::endl; }
+		else
 		_allImages->push_back(im);
 	 }
 	 in.close();

@@ -1,8 +1,13 @@
+
 #include "GLWidgetAllImgs.h"
 #include <gl/GLU.h>
 #include <glm/gtx/transform.hpp>
 #include <iostream>
 #include <QKeyEvent>
+#ifndef _WIN64
+	#include "imdebug.h"
+#endif
+#include <qtimer.h>
 
 int GLWidgetAllImgs:: printOglError(char *file, int line)
 {
@@ -21,7 +26,19 @@ int GLWidgetAllImgs:: printOglError(char *file, int line)
 GLWidgetAllImgs::GLWidgetAllImgs(std::vector<image> **allIms, QGLWidget *sharedWidget, const QList<GLWidget*> &imageQGLWidgets, glm::vec3 xyzMin, glm::vec3 xyzMax )
 	: QGLWidget((QWidget*)NULL, sharedWidget), _allIms(allIms), _imageQGLWidgets(imageQGLWidgets), _virtualImg(NULL), _xyzMin(xyzMin), _xyzMax(xyzMax)
 {
-	upDateParam();	
+	upDateParam();
+
+	//_timer = new QTimer(this);
+
+	// make a thread for kinect
+	_faceTrack.moveToThread(&_KinectThread);	
+	QObject::connect( &_KinectThread, SIGNAL(started()), &_faceTrack, SLOT(FaceTrackingThread()));
+	QObject::connect( &_faceTrack, SIGNAL(drawKinect_SIGNALS( unsigned char *, int, int, int , int , int , int )), 
+		this, SLOT(drawKinect_SLOTS( unsigned char *, int, int, int , int , int , int )), Qt::QueuedConnection);
+	//QObject::connect( this, SIGNAL(doFaceTracking_SIGNAL()), &_faceTrack, SLOT(doFaceTracking_SLOT()), Qt::QueuedConnection);
+	//QObject::connect(_timer, SIGNAL(timeout()), &_faceTrack, SLOT(doFaceTracking_SLOT()), Qt::QueuedConnection);
+	
+	std::cout<<"current threadId GLWidgetAllImgs" << GetCurrentThreadId() << std::endl;
 }
 
 void GLWidgetAllImgs :: upDateParam()
@@ -29,8 +46,8 @@ void GLWidgetAllImgs :: upDateParam()
 	computeBoundingBox();
 
 	_nearPlane = _allCamRadius * 0.1;
-	_farPlane = _allCamRadius * 500;	// this will work for all the cases
-	_fieldOfView = 90;	// this can be changed by mouse
+	_farPlane = _allCamRadius * 100;	// this will work for all the cases
+	_fieldOfView = 120;	// this can be changed by mouse
 
 	_objCenterPos = _allCamCenter;
 	//_optCenterPos = _allCamCenter + glm::vec3(0., 0., -1.5* _allCamRadius);
@@ -38,15 +55,22 @@ void GLWidgetAllImgs :: upDateParam()
 	std::cout<<" allCamRadius: " << _allCamRadius << std::endl;
 	_virtualModelViewMatrix = glm::lookAt( _optCenterPos, 
 		_objCenterPos, glm::vec3(0.0, 1.0, 0.0));
+	_virtualProjectionMatrix = glm::perspective( _fieldOfView, _aspectRatio, _nearPlane, _farPlane);
 }
 
 
 void GLWidgetAllImgs :: initializeGL(){	
-	glClearColor(0.5, 0.5, 0.5, 1.);
+
+	glewInit();
+
+	
 	glColor4f(1., 0., 0., 1.);	
+
+	_KinectThread.start();
+
+	
+
 }
-
-
 
 
 void GLWidgetAllImgs::mousePressEvent(QMouseEvent *event)
@@ -82,10 +106,8 @@ void GLWidgetAllImgs::mouseMoveEvent(QMouseEvent *event)
 		_virtualModelViewMatrix = inverseProjectionMatrix * glm::translate(rangeX, -rangeY, 0.0f) * _virtualProjectionMatrix *  _virtualModelViewMatrix;
 		//_virtualProjectionMatrix = glm::translate(rangeX, -rangeY, 0.0f) * _virtualProjectionMatrix;
 	}
-	makeCurrent();
-	display();
-	swapBuffers();
-
+	
+	updateGL();
 	_mouseX = event->x();
 	_mouseY = event->y();
 }
@@ -109,9 +131,10 @@ void GLWidgetAllImgs::wheelEvent(QWheelEvent * event)
 		_fieldOfView *= 1.01f; // zoom out
 		_virtualProjectionMatrix = glm::perspective( _fieldOfView, _aspectRatio, _nearPlane, _farPlane);
 	}
-	makeCurrent();
-	display();
-	swapBuffers();
+	//makeCurrent();
+	//display();
+	//swapBuffers();
+	updateGL();
 }
 
 void GLWidgetAllImgs::keyPressEvent(QKeyEvent* event) {
@@ -138,16 +161,19 @@ void GLWidgetAllImgs::updateVirtualView_slot(virtualImage virImg)
 
 
 void GLWidgetAllImgs :: resizeGL(int w, int h){
-	glViewport(0, 0, w, h);
-	_aspectRatio = static_cast<float>(w)/ static_cast<float>(h);
 	_windowWidth = w;
 	_windowHeight = h;	
+
+	
+	_aspectRatio = static_cast<float>(w/2)/ static_cast<float>(h);
+	
 
 	_virtualProjectionMatrix = glm::perspective( _fieldOfView, _aspectRatio, _nearPlane, _farPlane);
 }
 
 void GLWidgetAllImgs::display()
 {
+	glClearColor(0.5, 0.5, 0.5, 1.);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -156,13 +182,13 @@ void GLWidgetAllImgs::display()
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	glLoadMatrixf(&(_virtualModelViewMatrix[0][0]));
-	
+	glViewport(0, 0, _windowWidth/2, _windowHeight);
 	for(size_t i = 0; i< (*_allIms)->size(); i++)
 	{		
 		drawOneCam( (**_allIms)[i], _imageQGLWidgets[i]); 
 	}
 	drawCoordinate();
-	drawObjectScope();
+//	drawObjectScope();
 
 	if(_virtualImg != NULL)
 		drawOneCam( *_virtualImg);
@@ -207,8 +233,143 @@ void GLWidgetAllImgs :: drawObjectScope()
 }
 
 void GLWidgetAllImgs :: paintGL(){
+
 	display();
+	displayImage(_kinectColorImage._textureID);
 }
+
+
+void GLWidgetAllImgs :: drawKinect_SLOTS( unsigned char *data, int width, int height, int left, int right, int bottom, int top)
+{
+	/*POINT leftTop = {rectFace.left, rectFace.top};
+	POINT rightTop = {rectFace.right - 1, rectFace.top};
+	POINT leftBottom = {rectFace.left, rectFace.bottom - 1};
+	POINT rightBottom = {rectFace.right - 1, rectFace.bottom - 1};
+	std::cout<< "leftTop: " << leftTop.x << " " << leftTop.y << std::endl;
+	std::cout<< "rightTop: " << rightTop.x << " " << rightTop.y << std::endl;
+	std::cout<< "leftBottom: " << leftBottom.x << " " << leftBottom.y << std::endl;
+	std::cout<< "rightBottom: " << rightBottom.x << " " << rightBottom.y << std::endl;*/
+	//std::cout << left << " " << right << " " << bottom << " " << top << std::endl;
+
+	// display the image
+	//imdebug("rgba w=%d h=%d %p", width, height, data);
+	
+
+
+	static bool isFirstTime = true;
+	static bool isLastFrameDetected = false;
+	float centerX = static_cast<float>( left + right)/2.0f;
+	float centerY = static_cast<float>( top + bottom)/2.0f;
+
+	makeCurrent();
+	if(isFirstTime)
+	{
+		_kinectImageAspectRatio = float(height)/float(width);
+		_kinectColorImage.setTextureSize(width, height);
+		_kinectColorImage.createRGBA(data);
+		printOglError(__FILE__, __LINE__);
+		isFirstTime = false;
+		_kinectPos_X = centerX;
+		_kinectPos_Y = centerY;
+		//emit newPosKinect_SIGNAL(centerX, centerY, true);
+	}
+	else
+	{
+		_kinectColorImage.upLoadRGBA(data, width, height);
+
+		if(!isLastFrameDetected)
+		{
+			if(left != -1 || right != -1 || top != -1 || bottom != -1)
+			{
+				emit newPosKinect_SIGNAL(centerX, centerY, true);
+				isLastFrameDetected = true;
+			}
+		}
+		else
+		{
+			if(left != -1 || right != -1 || top != -1 || bottom != -1)
+			{
+				int deltaX = centerX - _kinectPos_X;
+				int deltaY = centerY - _kinectPos_Y;
+				//if( deltaX * deltaX + deltaY * deltaY > 4.0f)
+				if( abs(deltaX)  > 2.0f)
+				{
+					// emit signal
+					if(isLastFrameDetected)
+						emit newPosKinect_SIGNAL(deltaX, deltaY, false);
+					_kinectPos_X = centerX;
+					_kinectPos_Y = centerY;
+				}
+				isLastFrameDetected = true;
+			}
+			else
+				isLastFrameDetected = false;
+		}
+		
+	}
+	//// set the viewport and display image
+	//makeCurrent();
+	
+	//displayImage(_kinectColorImage._textureID);
+	//this->swapBuffers();
+
+	
+	updateGL();
+	// emit signal for updating view synthesis first
+	
+	// emit signal to get new image
+	QTimer::singleShot(0, &_faceTrack, SLOT(doFaceTracking_SLOT()));
+
+}
+
+void GLWidgetAllImgs:: displayImage(GLuint texture)
+{
+	//GLint prevProgram;
+	if(texture == 0)
+		return;
+	GLint prevProgram;
+	glGetIntegerv(GL_CURRENT_PROGRAM, &prevProgram);
+	glUseProgram(0);
+	//glClearColor(0.0f,0.0f,0.0f,1.0f);
+	//glClear(GL_COLOR_BUFFER_BIT);  
+	printOglError(__FILE__, __LINE__);
+	glActiveTexture(GL_TEXTURE0);
+	printOglError(__FILE__, __LINE__);
+	glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, texture);    
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+	//printOpenGLError();
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0);
+
+    glMatrixMode( GL_MODELVIEW);
+	glPushMatrix();
+    glLoadIdentity();
+
+	//glViewport(0, 0, _windowWidth, _windowHeight);
+	glViewport(_windowWidth/2, 0, _windowWidth/2, _windowWidth/2 * _kinectImageAspectRatio);
+
+	//printOpenGLError();	
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0, 0.0); 	glVertex3f(-1.0, 1.0, 0.5);
+    glTexCoord2f(1.0, 0.0); 	glVertex3f(1.0, 1.0, 0.5);
+    glTexCoord2f(1.0, 1.0); 	glVertex3f(1.0, -1.0, 0.5);
+    glTexCoord2f(0.0, 1.0); 	glVertex3f(-1.0, -1.0, 0.5);
+    glEnd();
+	//printOpenGLError();
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+//    glDisable(GL_TEXTURE_2D);	
+	glUseProgram(GLuint(prevProgram));
+	//printOpenGLError();	
+}
+
 
 void GLWidgetAllImgs::drawCoordinate()
 {
@@ -294,9 +455,20 @@ void GLWidgetAllImgs::drawOneCam(const virtualImage &img)
 
 void GLWidgetAllImgs::drawOneCam(const image &img, GLWidget* _oneImageQGLWidgets)
 {
+
 	glm::vec3 optCenterPos = img._optCenterPos;
 	glm::vec3 lookAtPos = img._lookAtPos;
 	glm::vec3 upDir = img._upDir;
+
+	/*std::cout<< "optCenterPos" << std::endl;
+	for(int i = 0; i<3; i++)
+		std::cout<< optCenterPos[i]<< " ";
+	std::cout<<std::endl;
+	std::cout<< "lookAtPos: " << std::endl;
+	for(int i = 0; i<3; i++)
+		std::cout<< lookAtPos[i]<< " ";
+	std::cout<<std::endl;*/
+
 
 	glm::vec3 camLookAtDir = glm::normalize(lookAtPos - optCenterPos);
 	glm::vec3 camUpDir = glm::normalize(upDir);
@@ -340,13 +512,13 @@ void GLWidgetAllImgs::drawOneCam(const image &img, GLWidget* _oneImageQGLWidgets
 	glEnd();
 
 	//draw upDir:
-	glColor4f(1.0f, 1.0f, 1.0f, 0.0f);
+	/*glColor4f(1.0f, 1.0f, 1.0f, 0.0f);
 	glm::vec3 p5 = p4 + camUpDir * cameraSizeScale;
 	glBegin(GL_LINES);
 		glVertex3f(p4.x, p4.y, p4.z);
 		glVertex3f(p5.x, p5.y, p5.z);
 	glEnd();
-	glColor4f(0.0f, 0.0f, 1.0f, 0.0f);
+	glColor4f(0.0f, 0.0f, 1.0f, 0.0f);*/
 }
 
 

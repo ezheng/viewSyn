@@ -11,9 +11,11 @@ public:
 	~GaussianBlurCUDA();
 
 	void Filter(cudaArray * array3D, int numOfLayers);
-
+	void RemoveUnreliableDepth( cudaArray *depthmap_CUDAArray);
+	void fillHolesDepth(cudaArray *depthmap_CUDAArray, cudaArray *colorImage_CUDAArray);
 private:
 	template<int FR> void FilterImage(cudaArray *array3D, int numOfLayers); //filter width
+	template<int FR> void RemoveUnreliableDepthImage(cudaArray *depthmap_CUDAArray);
 	void CreateFilterKernel(float sigma, float* kernel, int& width);
 private:
 	int m_nWidth, m_nHeight, m_nKernelWidth;
@@ -21,7 +23,10 @@ private:
 private:
 
 	cudaArray *_temp2DArray;
+	cudaArray *_temp2DArray_2;
+	cudaArray *_depthmap2D_backup;
 
+	cudaStream_t stream[2];
 };
 
 

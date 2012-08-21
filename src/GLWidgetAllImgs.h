@@ -1,6 +1,7 @@
 #ifndef _GLWIDGETALLIMGS_H
 #define _GLWIDGETALLIMGS_H
 
+#include "GL/glew.h"
 #include <QtOpenGL/QGLWidget>
 #include "image.h"
 #include <vector>
@@ -8,6 +9,9 @@
 #include <QWheelEvent>
 #include "GLWidget.h"
 #include "virtualImage.h"
+#include "FTHelper.h"
+#include "qthread.h"
+#include "texture2D.h"
 
 class GLWidgetAllImgs : public QGLWidget {
 	Q_OBJECT
@@ -17,6 +21,7 @@ public:
 	~GLWidgetAllImgs() {
 		if( _virtualImg != NULL)
 		{delete _virtualImg;}
+		//delete _timer;
 	}
 
 	std::vector<image>**_allIms;
@@ -73,10 +78,23 @@ private:
 	glm::vec3 _xyzMin;
 	glm::vec3 _xyzMax;
 
+// kinect:
+	FTHelper _faceTrack;
+	QThread _KinectThread; 
+	texture2D _kinectColorImage;
+	void displayImage(GLuint texture);
+	float _kinectImageAspectRatio;
+	float _kinectPos_X;
+	float _kinectPos_Y;
+	//QTimer *_timer;
+
 public slots:
 	void updateVirtualView_slot(virtualImage virImg);
+	void drawKinect_SLOTS( unsigned char *data, int width, int height, int left, int right, int bottom, int top);
 
-
+signals:
+	void doFaceTracking_SIGNAL();
+	void newPosKinect_SIGNAL(float, float, bool);
 };
 
 #endif

@@ -3,29 +3,78 @@
 layout(location = 0) out vec4 fragmentColor;
 in vec2 texCoordOut;
 
-uniform sampler3D texs;
-uniform int numOfLayers;
+uniform sampler2D texs0;
+uniform sampler2D texs1;
+uniform float weight;
+uniform float x_texSize;
+uniform float y_texSize;
 
+bool getColor( in vec2 texCoord, out vec4 color)
+{
+	vec4 color0 = texture(texs0, texCoord);
+	vec4 color1 = texture(texs1, texCoord);
+	if(color0.w !=0 && color1.w!=0)
+	{
+		color = mix(color0, color1, 1 - weight);
+		return true;
+	}
+	else if(color0.w != 0)
+	{
+		color = color0;
+		return true;
+	}
+	else if(color1.w != 0)
+	{
+		color = color1;
+		return true;	
+	}	
+	else
+	{
+		//color = vec4(0,0,0,0);
+		return false;
+	}
+}
 
 
 void main()
 {
-	
-	fragmentColor = vec4(0,0,0,1.0);
+	if(getColor( texCoordOut, fragmentColor))
+		return;
+		
+	for(int layer = 1; layer < 50; layer++)
+	{
+		float cornerOffsetX = layer * x_texSize;
+		float cornerOffsetY = layer * y_texSize;
+		for(int i = 0; i < layer; i++)
+		{
+			float offsetX = i * x_texSize;
+			float offsetY = i * y_texSize;
 
-	float size = 0.2;	// determine number of textures per row
-	
-	float col = floor(texCoordOut.x / size);
-	float row = floor(texCoordOut.y / size);
-
-	float xOffset = texCoordOut.x - col * size;
-	float yOffset = texCoordOut.y - row * size;
-
-	float i = row * 5 + col;
-	float layer = (1.0f +  2.0f *  i) / (2* float(numOfLayers));
-
-	fragmentColor.xyz = fragmentColor.xyz + texture(texs, vec3(xOffset/size, yOffset/size , layer)).xyz;
-	//if(fragmentColor.x == 0 && fragmentColor.y == 0 && fragmentColor.z == 0)
-	//	fragmentColor = vec4(1.0,1.0f,1.0f, 1.0f);
-
+			if(getColor( vec2( texCoordOut.x - cornerOffsetX , texCoordOut.y + offsetY), fragmentColor))
+				return;
+			if(getColor( vec2( texCoordOut.x - cornerOffsetX, texCoordOut.y - offsetY), fragmentColor))
+				return;
+			if(getColor( vec2( texCoordOut.x + cornerOffsetX, texCoordOut.y + offsetY), fragmentColor))
+				return;
+			if(getColor( vec2( texCoordOut.x + cornerOffsetX, texCoordOut.y - offsetY), fragmentColor))
+				return;
+			if(getColor( vec2( texCoordOut.x + offsetX, texCoordOut.y + cornerOffsetY), fragmentColor))
+				return;
+			if(getColor( vec2( texCoordOut.x + offsetX, texCoordOut.y - cornerOffsetY), fragmentColor))
+				return;
+			if(getColor( vec2( texCoordOut.x - offsetX, texCoordOut.y + cornerOffsetY), fragmentColor))
+				return;
+			if(getColor( vec2( texCoordOut.x - offsetX, texCoordOut.y - cornerOffsetY), fragmentColor))
+				return;
+		}
+		// four courners
+		if(getColor( vec2( texCoordOut.x - cornerOffsetX , texCoordOut.y + cornerOffsetY), fragmentColor))
+			return;
+		if(getColor( vec2( texCoordOut.x - cornerOffsetX, texCoordOut.y - cornerOffsetY), fragmentColor))
+			return;
+		if(getColor( vec2( texCoordOut.x + cornerOffsetX, texCoordOut.y + cornerOffsetY), fragmentColor))
+			return;
+		if(getColor( vec2( texCoordOut.x + cornerOffsetX, texCoordOut.y - cornerOffsetY), fragmentColor))
+			return;
+	}
 }

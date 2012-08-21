@@ -9,8 +9,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>932</width>
-    <height>625</height>
+    <width>1005</width>
+    <height>700</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -151,7 +151,7 @@
    <property name="geometry">
     <rect>
      <x>50</x>
-     <y>440</y>
+     <y>520</y>
      <width>71</width>
      <height>31</height>
     </rect>
@@ -164,7 +164,7 @@
    <property name="geometry">
     <rect>
      <x>50</x>
-     <y>480</y>
+     <y>560</y>
      <width>271</width>
      <height>31</height>
     </rect>
@@ -177,7 +177,7 @@
    <property name="geometry">
     <rect>
      <x>450</x>
-     <y>470</y>
+     <y>540</y>
      <width>168</width>
      <height>22</height>
     </rect>
@@ -193,13 +193,13 @@
     <item>
      <widget class="QDoubleSpinBox" name="doubleSpinBox_nearPlane">
       <property name="maximum">
-       <double>999.990000000000009</double>
+       <double>9999.989999999999782</double>
       </property>
       <property name="singleStep">
        <double>1.000000000000000</double>
       </property>
       <property name="value">
-       <double>3.500000000000000</double>
+       <double>600.000000000000000</double>
       </property>
      </widget>
     </item>
@@ -209,7 +209,7 @@
    <property name="geometry">
     <rect>
      <x>450</x>
-     <y>500</y>
+     <y>570</y>
      <width>168</width>
      <height>22</height>
     </rect>
@@ -225,13 +225,13 @@
     <item>
      <widget class="QDoubleSpinBox" name="doubleSpinBox_farPlane">
       <property name="maximum">
-       <double>999.990000000000009</double>
+       <double>9999.989999999999782</double>
       </property>
       <property name="singleStep">
        <double>0.500000000000000</double>
       </property>
       <property name="value">
-       <double>9.000000000000000</double>
+       <double>1900.000000000000000</double>
       </property>
      </widget>
     </item>
@@ -241,7 +241,7 @@
    <property name="geometry">
     <rect>
      <x>450</x>
-     <y>530</y>
+     <y>600</y>
      <width>168</width>
      <height>22</height>
     </rect>
@@ -276,7 +276,7 @@
    <property name="geometry">
     <rect>
      <x>450</x>
-     <y>436</y>
+     <y>506</y>
      <width>168</width>
      <height>22</height>
     </rect>
@@ -298,7 +298,7 @@
        <double>0.500000000000000</double>
       </property>
       <property name="value">
-       <double>1.000000000000000</double>
+       <double>3.000000000000000</double>
       </property>
      </widget>
     </item>

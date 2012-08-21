@@ -22,21 +22,26 @@ public:
 	QThread* _threads;
 	FlyCapture2::BusManager _busMgr;
 
-	std::vector<image>* retrieveImgsAllParallel(std::vector<image>* newBuffer);	
+	//std::vector<image>* retrieveImgsAllParallel(std::vector<image>* newBuffer);	
 	void startCaptureAll();
 	void stopCaptureAll(){};
 	void retrieveImgsAll();
 	unsigned int returnNumberOfCams();
-	
+	void swapBuffer( std::vector<image> ** newBuffer);
 
 private:
 	unsigned int _numOfCams;
 	std::vector<oneCame*> _allCames;
 	std::vector<image> *_allIms;	
 	bool allFlagsReady();
-
+	std::vector<int> _indices;
 signals:
 	void retrieveImgsAllParallel();
+	void imageReady_SIGNAL();
+
+public slots:
+	void retrieveImgsAllParallel_SLOTS();
+
 };
 
 
@@ -44,7 +49,7 @@ class oneCame:public QObject
 {
 	Q_OBJECT
 public:
-	oneCame(int id, FlyCapture2::BusManager &busMgr, cv::Mat* img);
+	oneCame(int id, FlyCapture2::BusManager &busMgr, cv::Mat* img, image* myFormatImg);
 	~oneCame();
 	float getFrameRate();	
 	void startCapture();
@@ -55,6 +60,7 @@ public:
 	bool isReady();
 
 	bool _readyFlag;
+	FlyCapture2:: CameraInfo getCamInfo();
 
 private:
 	void restartCam();
@@ -68,11 +74,18 @@ private:
 	FlyCapture2::Camera _cam;
 	FlyCapture2::Image _img;
 	cv::Mat* _imgOPENCV;
+	cv::Mat _tempImgOPENCV;
+
+	image *_myFormatImg;
 
 	unsigned int _cameraId;	// 0 , 1 ,2...
 	FlyCapture2::PGRGuid _guid;
 	QMutex _mutex;
-
+	
+	// for undistortion
+	cv::Mat _map1;
+	cv::Mat _map2;
+	bool _firstTime;
 public slots:		
 	void retrieveImageParallel();
 

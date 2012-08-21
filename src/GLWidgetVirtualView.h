@@ -13,7 +13,10 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 #include "texture2D.h"
-#include <QTime>
+//#include <QTime>
+#include <qelapsedtimer.h>
+#include "GaussianBlurCUDA.h"
+#include "ApproBilaterFilterHoleFilling.h"
 
 class planeSweepParameters
 {
@@ -64,7 +67,7 @@ public slots:
 	void psNearPlaneChanged(double nearPlanePos);
 	void psGSSigmaChanged(double sigma);
 	void psNumPlaneChanged(double numOfPlanes);
-
+	void newPosKinect_SLOT(float posChagneX, float posChangeY, bool isInitialized);
 
 private:
 	VSShaderLib _shaderHandle;
@@ -85,12 +88,18 @@ private:
 	GLuint _displayLayerTextureVAOHandle;
 	
 	FramebufferObject *_fbo;
+	FramebufferObject *_fboRenderImage;
+	GLuint _depthTextureForRenderImage;
+	void initDepthTextureForRenderImage(GLuint &depthTexture);
+
+
 	void initTexture3D(GLuint &RTT3D, int imageWidth, int imageHeight, int numOfLayers, bool isColorTexture);
 	void initializeVBO_VAO(float *vertices, int numOfPrimitive, GLuint &vboObject, GLuint &vaoObject);
 	void initializeRenderVBO_VAO(GLuint &vboObject, GLuint &vaoObject);
 
 	void initializeVBO_VAO_DisplayLayerTexture(float *vertices, GLuint &vboObject, GLuint &vaoObject);
-	void displayLayedTexture(GLuint &texture);
+	//void displayLayedTexture(GLuint &texture);
+	void displayLayedTexture(GLuint &texture1, GLuint &texture2);
 	int printOglError(char *file, int line);
 
 	struct cudaGraphicsResource *_cost3D_CUDAResource;
@@ -99,13 +108,14 @@ private:
 	//struct cudaGraphicsResource *_depthmap_CUDAResource;
 	struct cudaGraphicsResource *_depthmap1_CUDAResource;
 	struct cudaGraphicsResource *_depthmap2_CUDAResource;
-
+	struct cudaGraphicsResource *_colorImage_CUDAResource;
 
 	cudaArray *_cost3D_CUDAArray;
 //	cudaArray *_color3D_CUDAArray;
 	cudaArray *_syncView_CUDAArray;
 	cudaArray *_depthmap1_CUDAArray;
 	cudaArray *_depthmap2_CUDAArray;
+	cudaArray *_colorImage_CUDAArray;
 
 
 	void _CUDA_SAFE_CALL( cudaError_t error, std::string fileName, int lineNum);
@@ -117,9 +127,14 @@ private:
 	texture2D _depthmap1;
 	texture2D _depthmap2;
 
+	texture2D _renderedImage1;
+	texture2D _renderedImage2;
+	texture2D _renderedImage3;
+
+
 	bool _display_Color_Depth;
 
-	void displayImage(GLuint texture, int imageWidth, int imageHeight);
+	void displayImage(GLuint texture, int imageWidth, int imageHeight, float percent = 1.0f);
 
 	std::string _warpingGeoFileName;
 	std::string _warpingFragFileName;
@@ -131,30 +146,27 @@ private:
 	void findNearestCam(int * nearCamIndex, glm::vec3 fixedPos, int notIncluded = -1);
 	void createDistTable();
 	int _distTable[16];
-	void doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray);
+	void doCudaGetDepth(cudaArray* cost3D_CUDAArray, cudaArray* depthmap_CUDAArray, cudaArray* syncView_CUDAArray, int refIndex);
 	//void renderUsingDepth(int refIndex);
 	void renderUsingDepth(int refIndex, int refIndex1);
 
 	int _numOfVertices;
-	QTime _t;
-	float _totalTime;
-	int _numOfFrame;
+	QElapsedTimer _t;
+	
 
+// for rotation and translation
+	float _weightOfView;
+	int _nearestCamIndex;
 
-	GLuint _feedback;
-	GLuint _depthPointsVBO_output;
-	GLuint _depthPointsVBO_input;
-	GLuint _depthPointsVAO_input;
-	GLuint _depthPointsVAO_output;
-	VSShaderLib _shaderHandleGenerate3DPoints; 
-	VSShaderLib _shaderHandleRenderMesh;
-	void prepare3DPointsShader();
-	void generate3DPoints(int refIndex, int refIndex2);
-	void renderMesh(int refIndex, int refIndex2);
+//
+	GaussianBlurCUDA *_gaussianF;
 
+	GaussianBlurCUDA *_gaussianF2; //DEFAULT 3.0F
+	ApproBilaterFilterHoleFilling *_fillHoleFilter;
 
 signals:
 	void updateGL_SIGNAL();
+	
 };
 
 

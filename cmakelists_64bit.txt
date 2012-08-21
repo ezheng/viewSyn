@@ -1,0 +1,97 @@
+cmake_minimum_required(VERSION 2.7)
+project(viewSynSln)
+
+find_package(Qt4 COMPONENTS QtCore QtGui QtOpenGL REQUIRED)
+find_package(OpenGL REQUIRED)
+find_package(CUDA REQUIRED)
+
+set(CMAKE_INCLUDE_PATH "C:/Enliang/library_64/Qt/4.8.2/bin")
+set(OPENCV_INCLUDE "C:/Enliang/library/opencv/build/include/")
+set(OPENCV_LIB_PATH "C:/Enliang/library/opencv/build/x64/vc10/lib/")
+set(GLM_PATH "C:/Enliang/library/glm-0.9.3.3/")
+set(PTGRY "C:/Program Files/Point Grey Research/FlyCapture2")
+set(GLEW_PATH "C:/Enliang/library_64/glew-1.9.0")
+
+#set(IMDEBUG_PATH "C:/Enliang/library/imdebug")
+
+#------------------------------------------------------------------------------------
+qt4_wrap_cpp (MOC_OUTFILES src/GLWidget.h src/viewSynForm.h src/mainWindowForm.h src/ptrFlea3.h 
+			src/GLWidgetVirtualView.h src/GLWidgetAllImgs.h src/FTHelper.h)
+qt4_wrap_ui(UI_OUTFILES src/mainWidget.ui src/mainWindow.ui)
+#set(CUDA_NVCC_FLAGS -G0; -arch sm_20)
+set(CUDA_NVCC_FLAGS  -arch sm_20)
+
+
+IF(MSVC)
+   ADD_DEFINITIONS(/arch:SSE)
+ENDIF(MSVC)
+
+include_directories(
+					${QT_QTGUI_INCLUDE_DIR} 
+                    ${QT_QTCORE_INCLUDE_DIR} 
+                    ${QT_INCLUDE_DIR}
+                    ${QT_QTOPENGL_INCLUDE_DIR}
+                    ${CMAKE_BINARY_DIR}
+					${OPENCV_INCLUDE}
+					${GLM_PATH}
+					${PTGRY}/include 
+					${GLEW_PATH}/include
+					${CUDA_TOOLKIT_INCLUDE}	
+					#${IMDEBUG_PATH}
+					$ENV{FTSDK_DIR}/inc $ENV{KINECTSDK10_DIR}/inc
+					) 
+					
+
+link_directories(
+					${OPENCV_LIB_PATH}
+					${PTGRY}/lib64
+					${GLEW_PATH}/lib	
+					$ENV{FTSDK_DIR}/lib/amd64
+					$ENV{KINECTSDK10_DIR}/lib/amd64					
+				)
+					
+
+cuda_add_executable(viewSyn         
+                      src/GLWidget.cpp src/GLWidget.h 
+                      src/main.cpp                      
+					  src/image.h  src/image.cpp
+					  src/viewSynForm.cpp  src/viewSynForm.h
+					  src/texture2D.cpp	  src/texture2D.h
+					  src/mainWindowForm.cpp  src/mainWindowForm.h
+					  src/GLWidgetAllImgs.cpp  src/GLWidgetAllImgs.h
+					  src/ptrFlea3.h  src/ptrFlea3.cpp
+					  src/GLWidgetVirtualView.cpp  src/GLWidgetVirtualView.h
+					  src/virtualImage.cpp	src/virtualImage.h
+					  src/vsShaderLib.cpp	src/vsShaderLib.h
+					  src/framebufferObject.cpp src/framebufferObject.h		
+					  shader/warping.vert shader/warping.geom shader/warping.frag 
+					  shader/displayLayeredTex.vert shader/displayLayeredTex.frag
+					  src/planeSweep.cu
+					  src/utility.h 	src/utility.cpp
+					  src/GaussianBlurCUDA.h src/GaussianBlurCUDA.cu
+					  shader/renderScene.vert shader/renderScene.geom shader/renderScene.frag 
+					  src/ApproBilaterFilterHoleFilling.h  src/ApproBilaterFilterHoleFilling.cu
+					  src/FTHelper.cpp src/FTHelper.h
+					  src/KinectSensor.cpp src/KinectSensor.h
+					 
+                      ${MOC_OUTFILES}
+                      ${UI_OUTFILES}					  
+              )
+
+target_link_libraries(viewSyn 
+                      ${QT_QTCORE_LIBRARY} 
+                      ${QT_QTGUI_LIBRARY}
+                      ${QT_QTOPENGL_LIBRARY}  
+                      ${OPENGL_LIBRARIES}
+					  optimized opencv_highgui240.lib optimized opencv_core240.lib
+					  debug opencv_highgui240d.lib debug opencv_core240d.lib
+					  debug opencv_imgproc240d.lib optimized opencv_imgproc240.lib
+					  debug FlyCapture2d_v100.lib optimized FlyCapture2_v100.lib
+					  FaceTrackLib.lib Kinect10.lib 				  
+					  glew32.lib
+					 # ${IMDEBUG_PATH}/imdebug.lib
+					  ${CUDA_CUDA_LIBRARY}
+					  ${CUDA_CUDART_LIBRARY}
+                      )
+					  
+add_definitions(-DUNICODE -D_UNICODE)

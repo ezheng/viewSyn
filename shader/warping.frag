@@ -17,9 +17,15 @@ void main()
 	}
 	
 	int numOfViews = 0;
+	//vec4 normalizedCoord[2];
+	//normalizedCoord[0] = ProjTexCoord[0]/ProjTexCoord[0].w;
+
 	if(ProjTexCoord[0].x/ProjTexCoord[0].w > 0 && ProjTexCoord[0].x/ProjTexCoord[0].w <1.0 &&
 		 ProjTexCoord[0].y/ProjTexCoord[0].w > 0 && ProjTexCoord[0].y/ProjTexCoord[0].w < 1.0 && 
 			ProjTexCoord[0].z/ProjTexCoord[0].w > 0.0f)
+	/*if( normalizedCoord[0].x > 0.0 && normalizedCoord[0].x < 1.0 && 
+		normalizedCoord[0].y > 0.0 && normalizedCoord[0].y < 1.0 &&
+		normalizedCoord[0].z > 0.0f)*/
 	{
 		projTexColor[0] = textureProj(tex0, ProjTexCoord[0]);
 		numOfViews = numOfViews + 1;

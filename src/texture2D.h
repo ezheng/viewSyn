@@ -13,6 +13,7 @@ public:
 
 public:
 	texture2D(int width, int height);
+	texture2D();
 	~texture2D(void);
 private:
 	int _width;	// this is the width of texture
@@ -20,10 +21,14 @@ private:
 
 public:
 	void create(const GLubyte *pPixels);
+	void createRGBA(const GLubyte *pPixels);
 	void bindTexture();
 	void unBindTexture();
 	void upLoad(const GLubyte *pPixels, int width, int height);
+	void upLoadRGBA(const GLubyte *pPixels, int width, int height);
 	void createGL_R32UI();
+	void createGL_R32I();
+	void setTextureSize(int width, int height){ _width = width, _height = height;}
 };
 
 #endif

@@ -13,7 +13,7 @@
 #include "ptrFlea3.h"
 #include <qtimer.h>
 #include <qmutex.h>
-
+#include <qthread.h>
 
 class mainWindowForm :
 	public QMainWindow
@@ -48,18 +48,26 @@ private:
 
 	bool _wasCapturing;
 	void showImageWindow();
-	QTimer _timer;
-	
+	//QTimer _timer;
+	QThread _CamCaptureThread; 
+	void readCalibrationData(std::string fileName, std::vector<image> * allImages, std::vector<image>* allImagesBackBuffer);
+
+	QThread _allImageThread;
+
 private slots:
 	void openFile_slot();
 	void startCapture_slot();	
 	void startViewSynthesis_slot();	
+	void loadCamParam_slot();
 
 	void retrieveImages();
 
 signals:
 	void redrawImages();
 	void redrawCameraPoses();
+
+	void retrieveImgsAllParallel_SIGNAL();
+	
 	
 
 };

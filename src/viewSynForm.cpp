@@ -74,8 +74,10 @@ void viewSynForm::saveImage()
 
 		if((**_ims)[i]._image.rows != 600)
 			std::cout<<"empty images" << std::endl;
-
-		cv::imwrite(fullFileName, (**_ims)[i]._image);
+		
+		cv::Mat img;
+		cv::flip((**_ims)[i]._image,img, 0);
+		cv::imwrite(fullFileName, img);
 	}
 }
 
@@ -115,8 +117,8 @@ void viewSynForm::setUpImages(std::vector<image>* ims, QGLWidget* widgetForConte
 		if(_glWidgets[i]->isHidden())
 			_glWidgets[i]->show();
 	}
-	for(int i = numOfImages; i<numOfWidgets; i++)
-		_glWidgets[i]->hide();
+	//for(int i = numOfImages; i<numOfWidgets; i++)
+	//	_glWidgets[i]->hide();
 }
 
 viewSynForm::~viewSynForm(void)
