@@ -9,6 +9,8 @@
 #endif
 #include <qtimer.h>
 
+//#define USE_KINECT
+
 int GLWidgetAllImgs:: printOglError(char *file, int line)
 {
     GLenum glErr;
@@ -66,8 +68,9 @@ void GLWidgetAllImgs :: initializeGL(){
 	
 	glColor4f(1., 0., 0., 1.);	
 
+#ifdef USE_KINECT
 	_KinectThread.start();
-
+#endif
 	
 
 }
