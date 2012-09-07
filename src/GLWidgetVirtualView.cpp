@@ -74,12 +74,12 @@ GLWidgetVirtualView :: GLWidgetVirtualView(std::vector<image> **allIms, QGLWidge
 	this->setGeometry(0,0, width, height);
 	_psParam._virtualHeight = (**allIms)[0]._image.rows; 
 	_psParam._virtualWidth = (**allIms)[0]._image.cols; 
-	_psParam._numOfPlanes = 100;
+	_psParam._numOfPlanes = 50;
 	//_psParam._numOfCameras  = 8;	
 	_psParam._numOfCameras = (*allIms)->size();
 	_psParam._gaussianSigma = 3.0f;
-	_psParam._near = 600.f;
-	_psParam._far = 1900.f;
+	_psParam._near = 3.5f;
+	_psParam._far = 13.f;
 //_psParam._near = 1200.f;
 //	_psParam._far =  2200.f;
 	//_psParam._near = .45f;
@@ -146,7 +146,11 @@ void GLWidgetVirtualView::initTexture3D(GLuint & RTT3D, int imageWidth, int imag
 	    
 	if(isColorTexture)
 	{
-		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, imageWidth, imageHeight, numOfLayers, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		char *data = new char[imageWidth * imageHeight * 4 * numOfLayers];
+		for(int i = 0; i<imageWidth * imageHeight * 4 * numOfLayers; i++)
+			data[i] = 100;
+		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, imageWidth, imageHeight, numOfLayers, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		delete []data;
 	}
 	else
 	{	
@@ -270,7 +274,7 @@ void GLWidgetVirtualView::initializeGL()
 	std::cout<<"current threadId GLWidgetVirtualView" << GetCurrentThreadId() << std::endl;
 
 	initTexture3D( _cost3DTexID, _psParam._virtualWidth, _psParam._virtualHeight, _psParam._numOfPlanes, false);
-//	initTexture3D( _color3DTexID, _psParam._virtualWidth, _psParam._virtualHeight, _psParam._numOfPlanes, true);
+	initTexture3D( _color3DTexID, _psParam._virtualWidth, _psParam._virtualHeight, _psParam._numOfPlanes, true);
 	printOpenGLError();
 
 	_shaderHandleRenderScene.init();
@@ -292,9 +296,10 @@ void GLWidgetVirtualView::initializeGL()
 	_fbo = new FramebufferObject();
 	_fbo->Bind();
 	_fbo->AttachTexture(GL_TEXTURE_3D, _cost3DTexID, GL_COLOR_ATTACHMENT0, 0, -1); // -1 means no specific layer is specified, 0 is the mipmap level
-	//_fbo->AttachTexture(GL_TEXTURE_3D, _color3DTexID, GL_COLOR_ATTACHMENT1, 0, -1); // -1 means no specific layer is specified, 0 is the mipmap level
-	//GLenum drawBufs[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
-	//glDrawBuffers(2, drawBufs);
+	_fbo->AttachTexture(GL_TEXTURE_3D, _color3DTexID, GL_COLOR_ATTACHMENT1, 0, -1); // -1 means no specific layer is specified, 0 is the mipmap level
+	GLenum drawBufs[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
+	glDrawBuffers(2, drawBufs);
+	printOpenGLError();
 	_fbo->IsValid(std::cout);
 	_fbo->Disable();
 
@@ -689,8 +694,8 @@ void GLWidgetVirtualView::paintGL()
 		glBindVertexArray(0);
 		_fbo->Disable();
 
-	//	for(int layer = 20; layer < 80; layer++)
-	//		imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, layer);
+		for(int layer = 20; layer < 50; layer++)
+			imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, 0, NULL, layer);
 		
 		if(ref == 0)
 		{

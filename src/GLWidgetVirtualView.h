@@ -76,7 +76,7 @@ private:
 
 	planeSweepParameters _psParam;
 	GLuint _cost3DTexID;
-//	GLuint _color3DTexID;
+	GLuint _color3DTexID;
 
 	GLuint _psVertexBufferHandle;
 	GLuint _psVertexArrayObjectHandle;

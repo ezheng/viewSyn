@@ -28,9 +28,6 @@ mainWindowForm::mainWindowForm(void): _busHandler(NULL), _imagesForm(NULL), _all
 	_allImages = new std::vector<image>;
 	_allImagesBackBuffer = new std::vector<image>;
 
-	std::cout<< "right after definition: _allImages: " << _allImages << std::endl;
-	std::cout<< "right after definition: _allImagesBackBuffer: " << _allImagesBackBuffer << std::endl;
-
 
 	QGLFormat format;
 	format.setVersion(4,2);
