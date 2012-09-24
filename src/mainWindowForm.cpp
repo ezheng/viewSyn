@@ -21,18 +21,13 @@ mainWindowForm::mainWindowForm(void): _busHandler(NULL), _imagesForm(NULL), _all
 	QObject::connect(ui.actionView_Synthesis, SIGNAL(triggered()), this, SLOT(startViewSynthesis_slot()));
 	QObject::connect(ui.actionLoad_Cam_Param, SIGNAL(triggered()), this, SLOT(loadCamParam_slot()), Qt::QueuedConnection);
 
-	
-	//_timer.setInterval(30);
-	//QObject::connect(&_timer, SIGNAL(timeout()), this, SLOT(retrieveImages()), Qt::QueuedConnection);  
-
 	_allImages = new std::vector<image>;
 	_allImagesBackBuffer = new std::vector<image>;
 
 
 	QGLFormat format;
-	format.setVersion(4,2);
-	//format.setProfile(QGLFormat::CoreProfile);
-	_widgetForContext = new QGLWidget(format);
+	format.setVersion(4,0);
+	_widgetForContext = new QGLWidget(format); 
 	
 }
 

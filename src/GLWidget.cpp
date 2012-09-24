@@ -142,9 +142,7 @@ void GLWidget::setPosValue(int posX, int posY, image refImg)
 	cv::Mat pointsPos = (cv::Mat_ <double>(3, 1) << static_cast<double>(posX), static_cast<double>(posY), 1.0);
 	cv::Mat line = fundMatrix * pointsPos;
 	drawLine(line);
-	makeCurrent();
-	display();
-	swapBuffers();
+	updateGL();
 }
 
 void GLWidget::drawLine( cv::Mat &line)

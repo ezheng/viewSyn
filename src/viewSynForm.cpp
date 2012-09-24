@@ -14,18 +14,25 @@ viewSynForm::viewSynForm(std::vector<image>** ims, QGLWidget* widgetForContext/*
 	
 	ui.setupUi(this); 
 	_fixedWidth = 240;	
-	double aspectRatio = static_cast<double>( (**ims)[0]._image.rows)/static_cast<double>((**ims)[0]._image.cols);
-	
-	((QWidget*)(ui.gridLayout_Images->parent()))->setGeometry(0,0, _fixedWidth * 4.5, static_cast<int>(_fixedWidth * 2.5 * aspectRatio));
+	int numOfImages = (*ims)->size();		
+	double aspectRatio_largest = 0;
+	for(int i = 0; i<numOfImages; i++)
+	{
+		if(aspectRatio_largest < static_cast<double>( (**ims)[0]._image.rows)/static_cast<double>((**ims)[0]._image.cols))
+			aspectRatio_largest = static_cast<double>( (**ims)[0]._image.rows)/static_cast<double>((**ims)[0]._image.cols);
+	}	
+	((QWidget*)(ui.gridLayout_Images->parent()))->setGeometry(0,0, _fixedWidth * 4.5, static_cast<int>(_fixedWidth * 2.5 * aspectRatio_largest));
 	
 	this->setGeometry(((QWidget*)(ui.gridLayout_Images->parent()))->geometry());
 
-	int numOfImages = (*ims)->size();		
 
 	for(int i = 0; i < NUM_GLWIDGETS; i++){
+		
+
 		int j = (i>=numOfImages)? (numOfImages-1):i; 		
+		double aspectRatio_forEachImage = static_cast<double>( (**ims)[j]._image.rows)/static_cast<double>((**ims)[j]._image.cols);
 		GLWidget *glw = new GLWidget(&((**ims)[j]), i, widgetForContext);
-		glw->setFixedHeight(_fixedWidth * aspectRatio);
+		glw->setFixedHeight(_fixedWidth * aspectRatio_forEachImage);
 		glw->setFixedWidth(_fixedWidth);
 		if(j!=i)
 			glw->hide();

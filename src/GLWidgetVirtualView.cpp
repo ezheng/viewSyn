@@ -146,11 +146,7 @@ void GLWidgetVirtualView::initTexture3D(GLuint & RTT3D, int imageWidth, int imag
 	    
 	if(isColorTexture)
 	{
-		char *data = new char[imageWidth * imageHeight * 4 * numOfLayers];
-		for(int i = 0; i<imageWidth * imageHeight * 4 * numOfLayers; i++)
-			data[i] = 100;
-		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, imageWidth, imageHeight, numOfLayers, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		delete []data;
+		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, imageWidth, imageHeight, numOfLayers, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 	}
 	else
 	{	
@@ -694,9 +690,9 @@ void GLWidgetVirtualView::paintGL()
 		glBindVertexArray(0);
 		_fbo->Disable();
 
-		for(int layer = 20; layer < 50; layer++)
+	/*	for(int layer = 20; layer < 50; layer++)
 			imdebugTexImage(GL_TEXTURE_3D, _color3DTexID,  GL_RGBA, 0, NULL, layer);
-		
+	*/	
 		if(ref == 0)
 		{
 			// register color image

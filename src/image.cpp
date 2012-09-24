@@ -101,10 +101,8 @@ cv::Mat image::calculateFundMatrix(const image &im)
 {
 	// calculate the fundermental matrix
 	cv::Mat e2 = _proj.colRange(cv::Range(0,3)) * im._C + _proj.col(3);	// epipole in camera 2
-
 	double e2_aux[9] = {0, -e2.at<double>(2,0), e2.at<double>(1,0), e2.at<double>(2,0), 0, -e2.at<double>(0,0), -e2.at<double>(1,0), e2.at<double>(0,0), 0 };
 	cv::Mat e2x = cv::Mat(3,3,CV_64F, e2_aux); 	
-
 	cv::Mat fundMatrix = e2x * _proj * im._proj.inv(cv::DECOMP_SVD);		
 	return fundMatrix;
 }
@@ -112,30 +110,15 @@ cv::Mat image::calculateFundMatrix(const image &im)
 #include <iostream>
 void image::setModelViewMatrix()
 {
-	//glm::vec3 viewDir = glm::vec3(0.0f,0.0f,1.0f);
-	//viewDir = glm::transpose(_glmR) * viewDir ;	
 	_viewDir = glm::transpose(_glmR) * glm::vec3(0.0f, 0.0f, 1.0f);
 
-	//_optCenterPos = -1* glm::transpose(_glmR) * _glmT;	
 	_optCenterPos = _glmC;
 	_lookAtPos = _optCenterPos + _viewDir;
-
-
-	//std::cout<< "optCenterPos" << std::endl;
-	/*for(int i = 0; i<3; i++)
-		std::cout<< _optCenterPos[i]<< " ";
-	std::cout<<std::endl;
-	std::cout<< "lookAtPos: " << std::endl;
-	for(int i = 0; i<3; i++)
-		std::cout<< _lookAtPos[i]<< " ";
-	std::cout<<std::endl;*/
-
 
 	_upDir = glm::vec3(0.0f,-1.0f,0.0f);
 	_upDir = glm::normalize(glm::transpose(_glmR) * _upDir);
 	
 	_modelViewMatrix = glm::lookAt(_optCenterPos,_lookAtPos, _upDir);
-	
 }
 
 void image::setProjMatrix()

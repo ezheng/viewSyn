@@ -48,11 +48,10 @@ void GLWidgetAllImgs :: upDateParam()
 	computeBoundingBox();
 
 	_nearPlane = _allCamRadius * 0.1;
-	_farPlane = _allCamRadius * 100;	// this will work for all the cases
+	_farPlane = _allCamRadius * 10;	// this will work for all the cases
 	_fieldOfView = 120;	// this can be changed by mouse
 
 	_objCenterPos = _allCamCenter;
-	//_optCenterPos = _allCamCenter + glm::vec3(0., 0., -1.5* _allCamRadius);
 	_optCenterPos = _allCamCenter - ((_viewingDir * _allCamRadius) * 5.0f);
 	std::cout<<" allCamRadius: " << _allCamRadius << std::endl;
 	_virtualModelViewMatrix = glm::lookAt( _optCenterPos, 
@@ -62,17 +61,11 @@ void GLWidgetAllImgs :: upDateParam()
 
 
 void GLWidgetAllImgs :: initializeGL(){	
-
 	glewInit();
-
-	
 	glColor4f(1., 0., 0., 1.);	
-
 #ifdef USE_KINECT
 	_KinectThread.start();
 #endif
-	
-
 }
 
 
@@ -463,19 +456,9 @@ void GLWidgetAllImgs::drawOneCam(const image &img, GLWidget* _oneImageQGLWidgets
 	glm::vec3 lookAtPos = img._lookAtPos;
 	glm::vec3 upDir = img._upDir;
 
-	/*std::cout<< "optCenterPos" << std::endl;
-	for(int i = 0; i<3; i++)
-		std::cout<< optCenterPos[i]<< " ";
-	std::cout<<std::endl;
-	std::cout<< "lookAtPos: " << std::endl;
-	for(int i = 0; i<3; i++)
-		std::cout<< lookAtPos[i]<< " ";
-	std::cout<<std::endl;*/
-
-
 	glm::vec3 camLookAtDir = glm::normalize(lookAtPos - optCenterPos);
 	glm::vec3 camUpDir = glm::normalize(upDir);
-	glm::vec3 camLeftDir = glm::cross(camUpDir, camLookAtDir);
+	glm::vec3 camLeftDir = glm::normalize( glm::cross(camUpDir, camLookAtDir));
 
 	float scaleFocalLength = img._glmK[0][0] / static_cast<float>(img._image.cols);
 	float scaleImageHeight = img._image.rows/ static_cast<float>(img._image.cols);
