@@ -24,7 +24,7 @@ for i = 1:numOfImages
 %      R = quaternion2matrix(camera(i).quarternion);
     
     
-    assert(abs(norm(camera(i).quarternion) - 1)<0.0001)
+%     assert(abs(norm(camera(i).quarternion) - 1)<0.0001)
     camera(i).pos = [data{1}(6),data{1}(7), data{1}(8)];
     camera(i).distortion = [data{1}(9),data{1}(10)];
 end
@@ -33,6 +33,7 @@ str = fgets(fid);
 numOf3DPoints = str2num(fgets(fid));
 
 fprintf(1, 'reading points...\n');
+% a = [];
 for i = 1:numOf3DPoints 
     if mod(i, 100) == 0
        fprintf( '%f%% percent is finished\n', i/numOf3DPoints *100 );
@@ -50,6 +51,7 @@ for i = 1:numOf3DPoints
       assert( imageIdx >= 0 && imageIdx <= numOfImages-1)
    end
    points3D(i).measure = measure;   
+%    a = [a; measure];
 end
 
 fclose(fid);
