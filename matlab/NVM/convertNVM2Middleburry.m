@@ -1,12 +1,17 @@
 function convertNVM2Middleburry()
 clc;
 
-nvmFileName = 'C:/Enliang/cpp/viewSyn/data/data_nvm/gateNight_changchang/berlin_hr_task-2-259.nvm';
-pcdbFileName = 'C:/Enliang/cpp/viewSyn/data/data_nvm/gateNight_changchang/pcdb.txt';
+nvmFileName = 'C:\Enliang\data\randObject\randObject.nvm';
+pcdbFileName = 'C:\Enliang\data\randObject\pcdb.txt';
+outputFileName = 'randObject.txt' ;
 
 % ------------------------------------------------------------------
 
 [folderHierarchy, fileExt, filePath] = parsePCDB(pcdbFileName);
+if( strcmp(fileExt, '$'))
+    fileExt = [];
+end
+
 [pathstr, name, ~] = fileparts(nvmFileName);
 if ~exist(fullfile(pathstr, [name, '.mat']), 'file')
     
@@ -19,11 +24,16 @@ if ~exist(fullfile(pathstr, [name, '.mat']), 'file')
         end
         
         filename = camera(i).name;
-        folderHierarchy_str = [filename(1:folderHierarchy(1)),'/'];
-        base = folderHierarchy(1);
-        for j = 2: numel(folderHierarchy)
-            folderHierarchy_str = [folderHierarchy_str,filename(base+1: (base + folderHierarchy(j))),'/'];
-            base = base + folderHierarchy(j);
+        
+        if(~isempty(folderHierarchy))
+            folderHierarchy_str = [filename(1:folderHierarchy(1)),'/'];
+            base = folderHierarchy(1);
+            for j = 2: numel(folderHierarchy)
+                folderHierarchy_str = [folderHierarchy_str,filename(base+1: (base + folderHierarchy(j))),'/'];
+                base = base + folderHierarchy(j);
+            end
+        else 
+            folderHierarchy_str = [];
         end
         camera(i).name = fullfile(filePath, folderHierarchy_str, [filename,'.',fileExt]);
         img = imread(camera(i).name);
@@ -38,6 +48,6 @@ else
     load(fullfile(pathstr, [name, '.mat']));
 end
 
-outputFileName = fullfile(pathstr, 'gateNight_middleburry.txt');
+outputFileName = fullfile(pathstr, outputFileName);
 writeMiddleburry(camera, outputFileName);
 
