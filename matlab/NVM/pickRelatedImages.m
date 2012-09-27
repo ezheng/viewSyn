@@ -1,4 +1,4 @@
-function pickRelatedImages( output_NVMFileName, input_NVMfileName, refCamId)
+function pickRelatedImages( input_NVMfileName, output_NVMfileName, refCamId, numOfImagesPicked, pcdbFileName)
 % Input: nvm file
 % Output: nvm file, with related cameras
 
@@ -22,8 +22,22 @@ for i = 1:numOf3DPoints
 end
 
 [~, idx] = sort(votes, 1, 'descend');
-writePickedCamNVM(camera(idx), output_NVMFileName);
+writePickedCamNVM(camera(idx), output_NVMfileName);
 
+% copy images
+[folderHierarchy, fileExt, filePath] = parsePCDB(pcdbFileName);
+[outputImageFolder,~,~ ] = fileparts(input_NVMfileName);
+pickedCameras = camera(idx);
+path = fullfile(outputImageFolder, 'pickedCamera');
+if( ~exist(path, 'dir'))
+    mkdir(path);
+end
+for i = 1:numOfImagesPicked
+    name = pickedCameras(i).name;
+    fullfileName = fullfile( filePath, name(1:folderHierarchy(1)), ...
+        name(folderHierarchy(1)+1: folderHierarchy(1) + folderHierarchy(2)),[name,'.', fileExt]);
+    copyfile( fullfileName, fullfile(path , [name,'.',fileExt] ))
+end
 end
 
 
@@ -42,6 +56,7 @@ function writePickedCamNVM( cameras, output_NVMFileName)
     end
     
     fprintf(fid, '\n');
+    fprintf(fid, '0\n');
     fclose(fid);
 end
 

@@ -32,7 +32,9 @@ str = fgets(fid);
 numOf3DPoints = str2num(fgets(fid));
 
 fprintf(1, 'reading points...\n');
-% a = [];
+if(numOf3DPoints == 0)
+    points3D = [];
+end
 for i = 1:numOf3DPoints 
     if mod(i, 100) == 0
        fprintf( '%f%% percent is finished\n', i/numOf3DPoints *100 );

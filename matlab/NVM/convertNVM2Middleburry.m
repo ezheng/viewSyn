@@ -1,9 +1,9 @@
-function convertNVM2Middleburry()
+function convertNVM2Middleburry(nvmFileName, pcdbFileName, outputFileName)
 clc;
 
-nvmFileName = 'C:\Enliang\data\randObject\randObject.nvm';
-pcdbFileName = 'C:\Enliang\data\randObject\pcdb.txt';
-outputFileName = 'randObject.txt' ;
+nvmFileName = 'C:\Enliang\data\brandenburgNight\pickedData.nvm';
+pcdbFileName = 'C:\Enliang\data\brandenburgNight\pcdb.txt';
+outputFileName = 'pickedData.txt' ;
 
 % ------------------------------------------------------------------
 
@@ -15,7 +15,7 @@ end
 [pathstr, name, ~] = fileparts(nvmFileName);
 if ~exist(fullfile(pathstr, [name, '.mat']), 'file')
     
-    [camera, points3d] = readNVM(nvmFileName);
+    [camera, ~] = readNVM(nvmFileName);
     % change the 'name' in 'camera' to full file path
     for i = 1:numel(camera)
         %     i
